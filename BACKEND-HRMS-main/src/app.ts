@@ -19,7 +19,8 @@ const allowedOrigins = [
   'http://127.0.0.1:3000',
   'http://127.0.0.1:3001',
   'https://hrmsvrpigroup.com',
-  'https://www.hrmsvrpigroup.com'
+  'https://www.hrmsvrpigroup.com',
+  'https://vercel.app'
 ]
 
 // Add FRONTEND_URL from env (e.g. Vercel deployment URL)
