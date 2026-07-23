@@ -1,0 +1,452 @@
+/* Sunset Tropical Theme Auth Layout */
+
+.sunset-auth-screen {
+  position: relative;
+  min-height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1600&auto=format&fit=crop&q=80') no-repeat center center;
+  background-size: cover;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* Navbar */
+.sunset-navbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 1.5rem 4rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 20;
+}
+
+.sunset-nav-links {
+  display: flex;
+  gap: 2rem;
+}
+
+.sunset-nav-links a {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.95rem;
+  transition: opacity 0.2s;
+}
+
+.sunset-nav-links a:hover {
+  opacity: 0.8;
+}
+
+.sunset-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.sunset-search input {
+  background: transparent;
+  border: 1px solid #fff;
+  border-radius: 4px;
+  padding: 0.5rem 2.5rem 0.5rem 1rem;
+  color: #fff;
+  font-size: 0.9rem;
+  outline: none;
+  width: 250px;
+}
+
+.sunset-search input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.sunset-search-icon {
+  position: absolute;
+  right: 0.75rem;
+  color: #fff;
+  width: 18px;
+  height: 18px;
+}
+
+/* Glass Container */
+.sunset-glass-container {
+  position: relative;
+  display: flex;
+  width: 100%;
+  max-width: 1100px;
+  min-height: 550px;
+  background: linear-gradient(135deg, rgba(255, 140, 0, 0.1), rgba(0, 0, 0, 0.2));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 1.5rem;
+  z-index: 10;
+  overflow: hidden;
+  margin-top: 3rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+/* Left Panel */
+.sunset-glass-left {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 55%;
+  height: 100%;
+  padding: 4rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  color: #fff;
+  transition: all 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 2;
+}
+
+.sunset-glass-container.is-flipped .sunset-glass-left {
+  left: 45%;
+}
+
+.sunset-brand-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2rem;
+  font-size: 1.8rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.sunset-brand-header .icon {
+  width: 28px;
+  height: 28px;
+}
+
+.sunset-heading {
+  font-size: 3.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+  margin-bottom: 1.5rem;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+
+.sunset-subtitle-text {
+  font-size: 1rem;
+  line-height: 1.6;
+  opacity: 0.9;
+  max-width: 400px;
+  margin-bottom: 2.5rem;
+}
+
+.sunset-socials {
+  display: flex;
+  gap: 1rem;
+}
+
+.sunset-social-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #fff;
+  color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.sunset-social-icon:hover {
+  transform: translateY(-2px);
+}
+
+.sunset-social-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Right Panel */
+.sunset-glass-right {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 45%;
+  height: 100%;
+  padding: 4rem;
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(15px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  transition: all 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 2;
+}
+
+.sunset-glass-container.is-flipped .sunset-glass-right {
+  right: 55%;
+}
+
+.sunset-right-welcome {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.welcome-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.sunset-mid-capsules {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2.5rem;
+  justify-content: center;
+}
+
+.sunset-capsule-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 2rem;
+  padding: 10px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.8);
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.sunset-capsule-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.sunset-capsule-btn--active {
+  background: #f97316 !important; /* Orange */
+  border-color: #f97316 !important;
+  color: #fff !important;
+  box-shadow: 0 4px 15px rgba(249, 115, 22, 0.4);
+}
+
+/* Form inputs */
+.sunset-form-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.sunset-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 1.5rem;
+}
+
+.sunset-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.sunset-input-wrap input {
+  width: 100%;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.5) !important;
+  border-radius: 0 !important;
+  padding: 8px 30px 8px 0 !important;
+  font-size: 1rem !important;
+  color: #fff !important;
+  transition: all 0.3s ease !important;
+  outline: none !important;
+}
+
+.sunset-input-wrap input::placeholder {
+  color: transparent !important; /* Hide placeholder if label is present, or keep it */
+}
+
+.sunset-input-wrap input:focus {
+  border-bottom-color: #f97316 !important; /* Orange focus */
+  box-shadow: none !important;
+}
+
+.sunset-input-icon, .sunset-password-toggle {
+  position: absolute;
+  right: 0;
+  color: #fff;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+/* Options */
+.sunset-options-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.sunset-checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.sunset-checkbox-container input {
+  accent-color: #f97316;
+  width: 16px;
+  height: 16px;
+}
+
+.sunset-forgot-link {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.sunset-forgot-link:hover {
+  text-decoration: underline;
+}
+
+/* Button */
+.sunset-btn-primary {
+  width: 100%;
+  height: 48px;
+  background: linear-gradient(90deg, #f97316, #ea580c) !important;
+  color: #fff !important;
+  border: none;
+  border-radius: 2rem;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 15px rgba(234, 88, 12, 0.4);
+}
+
+.sunset-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(234, 88, 12, 0.6);
+}
+
+.sunset-btn-primary:disabled {
+  background: rgba(255, 255, 255, 0.2) !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Register Form tweaks */
+.sunset-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.sunset-error-text {
+  font-size: 0.8rem;
+  color: #fca5a5;
+  margin: -10px 0 10px 0;
+}
+
+.sunset-success-text {
+  font-size: 0.8rem;
+  color: #86efac;
+  margin: -10px 0 10px 0;
+}
+
+/* Sign up prompt */
+.sunset-signup-prompt {
+  margin-top: 1.5rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #fff;
+}
+
+.sunset-signup-prompt a {
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.sunset-signup-prompt a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 960px) {
+  .sunset-glass-container {
+    flex-direction: column;
+    max-width: 500px;
+    width: 90%;
+    min-height: auto;
+    margin: 2rem auto;
+  }
+  .sunset-glass-left {
+    display: none;
+  }
+  .sunset-glass-right {
+    position: relative;
+    width: 100%;
+    padding: 3rem 2rem;
+    left: 0 !important;
+    right: 0 !important;
+  }
+  .sunset-navbar {
+    display: none; /* Hide navbar on mobile for simplicity */
+  }
+}
+
+/* Super Admin Theme overrides */
+.sunset-auth-screen.superadmin-auth-screen {
+  background: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1600&auto=format&fit=crop&q=80') no-repeat center center;
+  background-size: cover;
+}
+
+.sunset-auth-screen.superadmin-auth-screen .sunset-glass-container {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(0, 0, 0, 0.35)) !important;
+  box-shadow: 0 25px 50px -12px rgba(99, 102, 241, 0.25) !important;
+  border: 1px solid rgba(99, 102, 241, 0.2) !important;
+}
+
+.sunset-auth-screen.superadmin-auth-screen .sunset-btn-primary {
+  background: linear-gradient(90deg, #6366f1, #4f46e5) !important;
+  box-shadow: 0 4px 15px rgba(79, 70, 229, 0.4) !important;
+}
+
+.sunset-auth-screen.superadmin-auth-screen .sunset-btn-primary:hover {
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.6) !important;
+}
+
+.sunset-auth-screen.superadmin-auth-screen .sunset-input-wrap input:focus {
+  border-bottom-color: #6366f1 !important;
+}
+
+.sunset-auth-screen.superadmin-auth-screen .sunset-checkbox-container input {
+  accent-color: #6366f1 !important;
+}
+
