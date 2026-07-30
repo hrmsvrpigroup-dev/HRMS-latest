@@ -100,10 +100,6 @@ jobs:
         working-directory: Frontend-HRMS-main
         run: npm install --legacy-peer-deps typeface-poppins
 
-      - name: Update Browserslist DB
-        working-directory: Frontend-HRMS-main
-        run: npx update-browserslist-db@latest --legacy-peer-deps
-
       - name: Build React app
         working-directory: Frontend-HRMS-main
         env:
