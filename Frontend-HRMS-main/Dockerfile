@@ -1,5 +1,7 @@
+# Base image
 FROM node:20-alpine
 
+# Working directory
 WORKDIR /app
 
 COPY package*.json ./

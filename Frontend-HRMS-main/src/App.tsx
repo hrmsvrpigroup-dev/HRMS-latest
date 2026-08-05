@@ -163,6 +163,7 @@ export default function App() {
             <Route path="/hr/employees/:id/portfolio" element={<HREmployeePortfolio />} />
             <Route path="/hr/leaves" element={<LeaveApprovals />} />
             <Route path="/hr/recruitment" element={<Recruitment />} />
+            <Route path="/hr/interview-schedule" element={<Recruitment defaultTab="stage-6" />} />
             <Route path="/hr/tasks" element={<TaskAssignment />} />
             <Route path="/hr/salary" element={<Salary />} />
             <Route path="/hr/shifts" element={<Shifts />} />

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -100,8 +101,24 @@ const SOURCE_FILLS: Record<string, string> = {
   'Others': '#94a3b8',
 };
 
-export default function Recruitment() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+interface RecruitmentProps {
+  defaultTab?: string;
+}
+
+export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
+  const location = useLocation();
+  const isInterviewScheduleRoute = location.pathname.includes('/hr/interview-schedule');
+  const [activeTab, setActiveTab] = useState(
+    defaultTab || (isInterviewScheduleRoute ? 'stage-6' : 'dashboard')
+  );
+
+  useEffect(() => {
+    if (location.pathname.includes('/hr/interview-schedule')) {
+      setActiveTab('stage-6');
+    } else if (defaultTab) {
+      setActiveTab(defaultTab);
+    }
+  }, [location.pathname, defaultTab]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [candidates, setCandidates] = useState<Candidate[]>([]);

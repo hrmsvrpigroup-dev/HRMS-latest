@@ -13,6 +13,7 @@ export default function HRLayout() {
         { to: '/hr/calendar', label: 'Calendar' },
         { to: '/hr/leaves', label: 'Leave Approvals' },
         { to: '/hr/recruitment', label: 'Recruitment' },
+        { to: '/hr/interview-schedule', label: 'Interview Schedule' },
         { to: '/hr/tasks', label: 'Task Assignment' },
         { to: '/hr/salary', label: 'Salary' },
         { to: '/hr/documents', label: 'Documents' },
