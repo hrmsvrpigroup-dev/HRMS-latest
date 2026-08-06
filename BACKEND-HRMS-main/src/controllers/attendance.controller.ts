@@ -381,4 +381,69 @@ export const attendanceController = {
       return sendError(res, error.message || 'Failed to resume shift', 500)
     }
   },
+
+  async manualClockIn(req: AuthRequest, res: Response) {
+    const tenantId = req.tenantId ?? req.user?.tenantId
+    const { employeeId } = req.body as { employeeId?: string }
+
+    if (!tenantId) {
+      return sendError(res, 'Unauthorized or tenant context not found', 401)
+    }
+
+    if (!employeeId) {
+      return sendError(res, 'Employee ID is required.', 400)
+    }
+
+    try {
+      const employee = await prisma.employee.findFirst({
+        where: { id: employeeId, tenantId },
+      })
+      if (!employee) {
+        return sendError(res, 'Employee profile not found.', 404)
+      }
+
+      const todayStr = new Date().toISOString().split('T')[0]
+      const todayDate = new Date(todayStr)
+
+      const existingRecord = await prisma.attendance.findUnique({
+        where: {
+          tenantId_employeeId_date: {
+            tenantId,
+            employeeId: employee.id,
+            date: todayDate,
+          },
+        },
+      })
+
+      if (existingRecord?.clockIn) {
+        return sendError(res, 'Employee has already clocked in for today.', 400)
+      }
+
+      const now = new Date()
+      const attendance = await prisma.attendance.upsert({
+        where: {
+          tenantId_employeeId_date: {
+            tenantId,
+            employeeId: employee.id,
+            date: todayDate,
+          },
+        },
+        update: {
+          clockIn: now,
+          status: AttendanceStatus.PRESENT,
+        },
+        create: {
+          tenantId,
+          employeeId: employee.id,
+          date: todayDate,
+          clockIn: now,
+          status: AttendanceStatus.PRESENT,
+        },
+      })
+
+      return sendSuccess(res, attendance, 'Manual clock-in recorded successfully')
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to manually clock in employee', 500)
+    }
+  },
 }

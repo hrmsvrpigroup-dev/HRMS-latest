@@ -16,21 +16,25 @@ const app = express()
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
+  'http://localhost:5173',
+  'http://localhost:5174',
   'http://127.0.0.1:3000',
   'http://127.0.0.1:3001',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
   'https://hrmsvrpigroup.com',
-  'https://www.hrmsvrpigroup.com'
+  'https://www.hrmsvrpigroup.com',
+  'https://hrms-latest-dusky.vercel.app',
 ]
 
-// Add FRONTEND_URL from env (e.g. Vercel deployment URL)
-if (process.env.FRONTEND_URL) {
-  const frontendUrls = process.env.FRONTEND_URL.split(',').map(u => u.trim())
-  frontendUrls.forEach(url => {
-    if (url && !allowedOrigins.includes(url)) {
-      allowedOrigins.push(url)
-    }
-  })
-}
+// Add FRONTEND_URL or ALLOWED_ORIGINS from env (e.g. Vercel deployment URL)
+const envOrigins = (process.env.FRONTEND_URL || process.env.ALLOWED_ORIGINS || '').split(',')
+envOrigins.forEach(url => {
+  const trimmed = url.trim()
+  if (trimmed && !allowedOrigins.includes(trimmed)) {
+    allowedOrigins.push(trimmed)
+  }
+})
 
 app.use(
   cors({
@@ -44,6 +48,11 @@ app.use(
       try {
         const originHost = new URL(origin).hostname
         
+        // Allow Vercel deployment domains (*.vercel.app)
+        if (originHost.endsWith('.vercel.app') || originHost === 'vercel.app') {
+          isAllowed = true
+        }
+
         // Allow any subdomain on localhost for development (e.g. tenant.localhost, superadmin.localhost)
         if (originHost.endsWith('.localhost') || originHost === 'localhost') {
           isAllowed = true
@@ -64,16 +73,14 @@ app.use(
         console.error('CORS URL parsing error:', err)
       }
 
-      if (isAllowed) {
-        callback(null, true)
-      } else {
-        callback(new Error('Not allowed by CORS'))
-      }
+      callback(null, isAllowed)
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'x-tenant-id'],
   })
 )
-app.use(helmet())
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }))
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'))

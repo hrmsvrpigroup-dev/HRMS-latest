@@ -15,5 +15,6 @@ router.get('/today', attendanceController.todayStatus)
 router.post('/idle', attendanceController.logIdle)
 router.delete('/:id/reset', attendanceController.resetShift)
 router.post('/:id/continue', attendanceController.continueShift)
+router.post('/manual-clock-in', authorize('ADMIN', 'HR'), attendanceController.manualClockIn)
 
 export default router
