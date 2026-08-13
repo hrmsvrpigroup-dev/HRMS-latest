@@ -23,8 +23,8 @@ env:
   AWS_ACCOUNT_ID: "683213329249"
   ROLE_TO_ASSUME: "GitHub_identity_provider"
   NODE_VERSION: "22"
-  S3_BUCKET: "hrms-website-vrpi"
-  CLOUDFRONT_DISTRIBUTION_ID: "EH914YPBL3WQK"
+  S3_BUCKET: "hrms-app-latest"
+  CLOUDFRONT_DISTRIBUTION_ID: "E1RFWKANTU4564"
 
 jobs:
   deploy:
