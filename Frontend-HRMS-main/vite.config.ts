@@ -8,10 +8,10 @@ export default defineConfig(({ mode }) => {
   const getApiUrl = () => {
     let url = env.VITE_API_URL
     if (!url || url.includes('your-backend')) {
-      return '/api'
+      return 'https://hrms1-kk6q.onrender.com/api'
     }
     url = url.trim()
-    if (url.includes('localhost:5000') || url.includes('127.0.0.1:5000')) {
+    if (mode === 'development' && (url.includes('localhost:5000') || url.includes('127.0.0.1:5000'))) {
       return '/api'
     }
     if (!url.endsWith('/api')) {
@@ -19,6 +19,7 @@ export default defineConfig(({ mode }) => {
     }
     return url
   }
+
 
   const getWsUrl = () => {
     let url = env.VITE_WS_URL
