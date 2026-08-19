@@ -1,5 +1,7 @@
-import cors from 'cors'
 import dotenv from 'dotenv'
+dotenv.config()
+
+import cors from 'cors'
 import express from 'express'
 import path from 'path'
 import helmet from 'helmet'
@@ -8,8 +10,6 @@ import morgan from 'morgan'
 import routes from './routes'
 import { errorHandler, notFoundHandler } from './middleware/error.middleware'
 import { resolveTenant } from './middleware/tenant.middleware'
-
-dotenv.config()
 
 const app = express()
 
@@ -36,6 +36,11 @@ envOrigins.forEach(url => {
   }
 })
 
+app.use((_req, res, next) => {
+  res.setHeader('Access-Control-Allow-Private-Network', 'true')
+  next()
+})
+
 app.use(
   cors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
@@ -48,8 +53,19 @@ app.use(
       try {
         const originHost = new URL(origin).hostname
         
-        // Allow Vercel deployment domains (*.vercel.app)
-        if (originHost.endsWith('.vercel.app') || originHost === 'vercel.app') {
+        // Allow IP addresses (e.g. 192.168.x.x, 10.x.x.x, 172.x.x.x, 127.0.0.1)
+        if (/^(\d{1,3}\.){3}\d{1,3}$/.test(originHost) || originHost.includes(':')) {
+          isAllowed = true
+        }
+
+        // Allow Vercel deployment domains (*.vercel.app, *.projects.vercel.app, *.vercel.dev)
+        if (originHost.includes('vercel')) {
+          isAllowed = true
+        }
+
+
+        // Allow ngrok deployment/tunnel domains (*.ngrok-free.app, *.ngrok-free.dev, etc.)
+        if (originHost.includes('ngrok')) {
           isAllowed = true
         }
 
@@ -84,6 +100,15 @@ app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }))
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'))
+
+// Root welcome route
+app.get('/', (_req, res) => {
+  return res.status(200).json({
+    success: true,
+    message: 'HRMS Backend API is running',
+    health: '/api/health',
+  })
+})
 
 // Health check route that bypasses tenant resolution
 app.get('/api/health', (_req, res) => {

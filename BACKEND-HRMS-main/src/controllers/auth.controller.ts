@@ -49,7 +49,7 @@ export const authController = {
       )
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Login failed'
-      return sendError(res, message, 401)
+      return res.status(401).json({ success: false, message })
     }
   },
 

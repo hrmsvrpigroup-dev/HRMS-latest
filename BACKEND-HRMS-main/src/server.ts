@@ -1,10 +1,12 @@
+import dotenv from 'dotenv'
+dotenv.config()
+
 import http from 'node:http'
 import dns from 'node:dns'
 
 // Force IPv4 first to fix ENETUNREACH errors on Render for external services like Gmail SMTP
 dns.setDefaultResultOrder('ipv4first')
 
-import dotenv from 'dotenv'
 import { Server as SocketServer } from 'socket.io'
 
 import app from './app'
@@ -13,8 +15,6 @@ import { redis } from './config/redis'
 import { authService } from './services/auth.service'
 import { setSocketServer } from './config/socket'
 import { runAttendanceJob } from './jobs/attendance.job'
-
-dotenv.config()
 
 const PORT = Number(process.env.PORT ?? 5000)
 
