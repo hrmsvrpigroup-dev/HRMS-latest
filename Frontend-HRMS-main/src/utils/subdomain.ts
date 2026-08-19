@@ -37,3 +37,6 @@ export const getSubdomain = (host: string) => {
   return ''
 }
 
+// Subdomain utility updated for Vercel deployment
+
+
