@@ -1,0 +1,10 @@
+{
+  "buildCommand": "cd Frontend-HRMS-main && npm run build",
+  "outputDirectory": "Frontend-HRMS-main/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
