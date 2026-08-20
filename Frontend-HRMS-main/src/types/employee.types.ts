@@ -1,9 +1,11 @@
-﻿export interface Employee {
+export interface Employee {
   id: string
   tenantId: string
   employeeCode: string
   firstName: string
   lastName: string
   email: string
+  personalEmail?: string
   salaryGross: number
 }
+

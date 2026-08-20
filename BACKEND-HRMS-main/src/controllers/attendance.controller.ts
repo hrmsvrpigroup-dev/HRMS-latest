@@ -3,6 +3,7 @@ import { prisma } from '../config/database'
 import { AuthRequest } from '../middleware/auth.middleware'
 import { sendError, sendSuccess } from '../utils/response.utils'
 import { AttendanceStatus, UserRole } from '@prisma/client'
+import { syncAttendanceToGoogleSheet } from '../services/googleSheets.service'
 
 export const attendanceController = {
   async list(req: AuthRequest, res: Response) {
@@ -155,6 +156,11 @@ export const attendanceController = {
         },
       })
 
+      // Sync clock-in to Google Sheet in background
+      syncAttendanceToGoogleSheet(attendance.id).catch((err) => {
+        console.error(`[GOOGLE_SHEETS_SYNC_ERROR] ${err.message}`)
+      })
+
       // Re-fetch updated employee to get current faceBaseline state
       const updatedEmployee = await prisma.employee.findUnique({ where: { id: employee.id } })
 
@@ -219,6 +225,11 @@ export const attendanceController = {
           clockOut: now,
           totalHours: diffHrs,
         },
+      })
+
+      // Sync clock-out to Google Sheet in background
+      syncAttendanceToGoogleSheet(attendance.id).catch((err) => {
+        console.error(`[GOOGLE_SHEETS_SYNC_ERROR] ${err.message}`)
       })
 
       return sendSuccess(res, attendance, 'Clock-out recorded successfully')
@@ -299,6 +310,11 @@ export const attendanceController = {
         data: { idleMinutes: { increment: 2 } },
       })
 
+      // Sync updated idle time to Google Sheet in background
+      syncAttendanceToGoogleSheet(updated.id).catch((err) => {
+        console.error(`[GOOGLE_SHEETS_SYNC_ERROR] ${err.message}`)
+      })
+
       console.log(`[IDLE LOG] Employee ${employee.employeeCode} idleMinutes=${updated.idleMinutes}`)
       return sendSuccess(res, { idleMinutes: updated.idleMinutes }, 'Idle time logged')
     } catch (error: any) {
@@ -376,6 +392,11 @@ export const attendanceController = {
         },
       })
 
+      // Sync resumed shift status to Google Sheet in background
+      syncAttendanceToGoogleSheet(updated.id).catch((err) => {
+        console.error(`[GOOGLE_SHEETS_SYNC_ERROR] ${err.message}`)
+      })
+
       return sendSuccess(res, updated, 'Shift resumed successfully')
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to resume shift', 500)
@@ -439,6 +460,11 @@ export const attendanceController = {
           clockIn: now,
           status: AttendanceStatus.PRESENT,
         },
+      })
+
+      // Sync manual clock-in to Google Sheet in background
+      syncAttendanceToGoogleSheet(attendance.id).catch((err) => {
+        console.error(`[GOOGLE_SHEETS_SYNC_ERROR] ${err.message}`)
       })
 
       return sendSuccess(res, attendance, 'Manual clock-in recorded successfully')

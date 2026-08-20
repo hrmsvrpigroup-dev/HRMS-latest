@@ -109,10 +109,14 @@ export default function Login() {
     setError('')
 
     try {
-      const response = await api.post<LoginResponse>('/auth/login', { email, password, subdomain: currentSubdomain })
+      const response = await api.post<LoginResponse>('/auth/login', { email: email.trim(), password, subdomain: currentSubdomain })
+      
+      if (!response.data || response.data.success === false) {
+        setError((response.data as any)?.message || 'Invalid credentials. Please try again.')
+        return
+      }
+
       const payload = response.data.data
-
-
 
       if (payload.mustResetPassword && payload.resetToken) {
         navigate(`/reset-password?token=${payload.resetToken}`, { replace: true })

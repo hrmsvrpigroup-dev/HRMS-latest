@@ -7,8 +7,13 @@ export default defineConfig(({ mode }) => {
 
   const getApiUrl = () => {
     let url = env.VITE_API_URL
-    if (mode === 'production' || process.env.VERCEL || !url || url.includes('localhost:5000') || url.includes('127.0.0.1:5000') || url.includes('your-backend')) {
-      return 'https://hrms1-kk6q.onrender.com/api'
+    if (mode === 'production' || process.env.VERCEL) {
+      if (!url || url.includes('your-backend')) {
+        return 'https://hrms1-kk6q.onrender.com/api'
+      }
+    }
+    if (!url) {
+      return 'http://localhost:5000/api'
     }
     url = url.trim()
     if (!url.endsWith('/api')) {

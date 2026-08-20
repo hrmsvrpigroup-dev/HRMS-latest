@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Download } from 'lucide-react'
 import { employeeApi, Employee } from '../../api/employee.api'
 import { AddEmployeeModal } from '../../components/onboarding/AddEmployeeModal'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
-
-
+import { downloadEmployeeExcel } from '../../utils/excelExport'
 
 export default function EmployeeList() {
   const navigate = useNavigate()
@@ -92,6 +92,15 @@ export default function EmployeeList() {
           <p>Complete workspace active directory roster and organization division audits.</p>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button
+            className="btn-secondary"
+            onClick={() => downloadEmployeeExcel(filteredEmployees, 'admin_employees_directory')}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            title="Download Employee Names, Work Mails, and Personal Mails as Excel Spreadsheet"
+          >
+            <Download size={16} />
+            Download Excel
+          </button>
           <button className="btn-secondary" onClick={() => navigate('/admin/onboarding')}>
             Onboarding Panel
           </button>
@@ -147,6 +156,7 @@ export default function EmployeeList() {
                 <th>Code</th>
                 <th>Employee Name</th>
                 <th>Work Email</th>
+                <th>Personal Email</th>
                 <th>Department & Title</th>
                 <th>Status</th>
                 <th>Base Gross Salary</th>
@@ -163,6 +173,7 @@ export default function EmployeeList() {
                     {emp.firstName} {emp.lastName}
                   </td>
                   <td>{emp.email}</td>
+                  <td>{emp.personalEmail || '-'}</td>
                   <td>
                     <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                       {emp.designation?.title || 'Team Member'}

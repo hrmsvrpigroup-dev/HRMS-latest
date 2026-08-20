@@ -6,6 +6,7 @@ export type Employee = {
   firstName: string
   lastName: string
   email: string
+  personalEmail?: string
   phone?: string
   gender?: string
   joiningDate: string
