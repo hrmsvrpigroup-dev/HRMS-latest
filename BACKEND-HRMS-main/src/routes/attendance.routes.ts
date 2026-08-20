@@ -16,5 +16,6 @@ router.post('/idle', attendanceController.logIdle)
 router.delete('/:id/reset', attendanceController.resetShift)
 router.post('/:id/continue', attendanceController.continueShift)
 router.post('/manual-clock-in', authorize('ADMIN', 'HR'), attendanceController.manualClockIn)
+router.post('/sync-google-sheets', authorize('ADMIN', 'HR'), attendanceController.syncAllGoogleSheets)
 
 export default router

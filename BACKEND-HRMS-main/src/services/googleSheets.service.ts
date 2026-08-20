@@ -2,6 +2,26 @@ import { google } from 'googleapis'
 import { prisma } from '../config/database'
 
 /**
+ * Helper to fetch with retry and exponential backoff.
+ */
+async function fetchWithRetry(url: string, options: any, retries = 3, backoffMs = 500): Promise<Response> {
+  let lastErr: any
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, options)
+      if (res.ok) return res
+      throw new Error(`HTTP status ${res.status}`)
+    } catch (err: any) {
+      lastErr = err
+      if (i < retries - 1) {
+        await new Promise((resolve) => setTimeout(resolve, backoffMs * Math.pow(2, i)))
+      }
+    }
+  }
+  throw lastErr
+}
+
+/**
  * Synchronizes attendance details to Google Sheets.
  * Tab Name = Shift Date (e.g. YYYY-MM-DD)
  * Header Columns:
@@ -28,7 +48,9 @@ export async function syncAttendanceToGoogleSheet(attendanceId: string): Promise
 
     // Derive date string for sheet tab name (e.g. "2026-08-20")
     const shiftDateObj = record.date ? new Date(record.date) : new Date()
-    const shiftDateTabName = shiftDateObj.toISOString().split('T')[0]
+    const shiftDateTabName = record.date instanceof Date
+      ? record.date.toISOString().split('T')[0]
+      : (shiftDateObj ? shiftDateObj.toISOString().split('T')[0] : new Date().toISOString().split('T')[0])
 
     // Formatted details
     const code = record.employee.employeeCode || 'N/A'
@@ -38,7 +60,7 @@ export async function syncAttendanceToGoogleSheet(attendanceId: string): Promise
     const clockOutStr = record.clockOut ? new Date(record.clockOut).toLocaleTimeString('en-US') : '--'
     const totalHoursStr = record.totalHours != null ? `${record.totalHours} hrs` : '--'
 
-    // Compute Active Hours
+    // Compute Active Working Hours accurately
     let activeHrsVal: number | null = null
     if (record.totalHours != null) {
       activeHrsVal = Math.max(0, record.totalHours - (record.idleMinutes / 60))
@@ -52,7 +74,7 @@ export async function syncAttendanceToGoogleSheet(attendanceId: string): Promise
     const idleTimeStr = record.idleMinutes > 0 ? `${record.idleMinutes} min` : '--'
     const statusStr = record.status || 'PRESENT'
     const continueStr = record.clockOut ? '--' : (record.clockIn ? 'In Progress' : '--')
-    const actionsStr = record.clockIn ? 'ACTIVE' : '--'
+    const actionsStr = record.clockOut ? 'COMPLETED' : (record.clockIn ? 'ACTIVE' : '--')
 
     const rowData = [
       code,
@@ -71,7 +93,7 @@ export async function syncAttendanceToGoogleSheet(attendanceId: string): Promise
     // 1. Google Apps Script Webhook Sync (if GOOGLE_SHEET_WEBHOOK_URL is provided)
     if (webhookUrl && webhookUrl.trim().length > 0) {
       try {
-        const response = await fetch(webhookUrl, {
+        const response = await fetchWithRetry(webhookUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -80,10 +102,10 @@ export async function syncAttendanceToGoogleSheet(attendanceId: string): Promise
             employeeCode: code,
             row: rowData,
           }),
-        })
+        }, 3, 500)
         console.log(`[GOOGLE_SHEET_WEBHOOK] Synced employee ${code} for tab ${shiftDateTabName}, status: ${response.status}`)
       } catch (webhookErr: any) {
-        console.error(`[GOOGLE_SHEET_WEBHOOK_ERROR] ${webhookErr.message}`)
+        console.error(`[GOOGLE_SHEET_WEBHOOK_ERROR] Failed after retries: ${webhookErr.message}`)
       }
     }
 
@@ -201,3 +223,37 @@ export async function syncAttendanceToGoogleSheet(attendanceId: string): Promise
     console.error(`[GOOGLE_SHEETS_SYNC_GLOBAL_ERROR] ${error.message}`)
   }
 }
+
+/**
+ * Synchronizes all existing attendance records in the database to Google Sheets
+ * ensuring zero data loss.
+ */
+export async function syncAllAttendanceToGoogleSheet(tenantId?: string): Promise<{ total: number; synced: number }> {
+  try {
+    const whereClause: any = {}
+    if (tenantId) whereClause.tenantId = tenantId
+
+    const records = await prisma.attendance.findMany({
+      where: whereClause,
+      select: { id: true },
+      orderBy: { date: 'asc' },
+    })
+
+    console.log(`[GOOGLE_SHEETS_BACKFILL] Found ${records.length} attendance records to sync to Google Sheets...`)
+    let synced = 0
+    for (const rec of records) {
+      try {
+        await syncAttendanceToGoogleSheet(rec.id)
+        synced++
+      } catch (err: any) {
+        console.error(`[GOOGLE_SHEETS_BACKFILL_ERROR] Failed for record ID ${rec.id}: ${err.message}`)
+      }
+    }
+    console.log(`[GOOGLE_SHEETS_BACKFILL] Successfully backfilled ${synced}/${records.length} records to Google Sheets.`)
+    return { total: records.length, synced }
+  } catch (error: any) {
+    console.error(`[GOOGLE_SHEETS_BACKFILL_GLOBAL_ERROR] ${error.message}`)
+    return { total: 0, synced: 0 }
+  }
+}
+

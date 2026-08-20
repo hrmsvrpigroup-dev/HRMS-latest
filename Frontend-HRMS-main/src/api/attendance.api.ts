@@ -36,5 +36,9 @@ export const attendanceApi = {
   createMobileQrSession: () => api.post<{ success: boolean; data: { sessionId: string; qrCode: string; expiresAt: string; mobileUrl: string } }>('/attendance/mobile-qr/create'),
   getMobileQrStatus: (sessionId: string) => api.get<{ success: boolean; data: { status: string; accessToken?: string; refreshToken?: string } }>(`/attendance/mobile-qr/status/${sessionId}`),
   verifyMobileSelfie: (data: { sessionId: string; token: string; selfieBase64: string }) => api.post<{ success: boolean; data: any }>('/attendance/mobile-qr/verify', data),
+  // Google Sheets Sync
+  syncGoogleSheets: () => api.post<{ success: boolean; data: { total: number; synced: number }; message: string }>('/attendance/sync-google-sheets'),
 }
+
+
 

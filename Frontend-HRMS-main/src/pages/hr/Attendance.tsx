@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Download } from 'lucide-react'
+import { Download, RefreshCw } from 'lucide-react'
 import { attendanceApi, AttendanceItem } from '../../api/attendance.api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 
@@ -206,6 +206,23 @@ export default function Attendance() {
   // Face preview modal state
   const [previewLog, setPreviewLog] = useState<AttendanceItem | null>(null)
 
+  // Google Sheets manual sync state
+  const [syncingSheets, setSyncingSheets] = useState(false)
+  const [syncNotice, setSyncNotice] = useState('')
+
+  const handleSyncSheets = async () => {
+    try {
+      setSyncingSheets(true)
+      setSyncNotice('')
+      const res = await attendanceApi.syncGoogleSheets()
+      setSyncNotice(`✅ ${res.data.message || `Synced ${res.data.data.synced} records to Google Sheets`}`)
+    } catch (err: any) {
+      setSyncNotice(`❌ ${err.response?.data?.message || 'Failed to trigger Google Sheets sync'}`)
+    } finally {
+      setSyncingSheets(false)
+    }
+  }
+
   const fetchLogs = async () => {
     try {
       setLoading(true)
@@ -281,6 +298,29 @@ export default function Attendance() {
         </div>
         <div className="no-print" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           <button
+            onClick={handleSyncSheets}
+            disabled={syncingSheets}
+            className="btn-secondary"
+            style={{
+              padding: '10px 18px',
+              background: 'linear-gradient(135deg, #10b981, #059669)',
+              border: 'none',
+              borderRadius: '10px',
+              color: '#fff',
+              fontWeight: 700,
+              cursor: syncingSheets ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              boxShadow: '0 4px 14px rgba(16,185,129,0.35)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              opacity: syncingSheets ? 0.7 : 1,
+            }}
+          >
+            <RefreshCw size={15} style={{ animation: syncingSheets ? 'spin 1s linear infinite' : 'none' }} />
+            {syncingSheets ? 'Syncing...' : 'Sync Google Sheets'}
+          </button>
+          <button
             onClick={() => window.print()}
             className="btn-primary"
             style={{
@@ -302,6 +342,21 @@ export default function Attendance() {
           </button>
         </div>
       </div>
+
+      {syncNotice && (
+        <div style={{
+          padding: '0.8rem 1.2rem',
+          marginBottom: '1.2rem',
+          borderRadius: '10px',
+          background: syncNotice.startsWith('✅') ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+          border: syncNotice.startsWith('✅') ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(239,68,68,0.3)',
+          color: syncNotice.startsWith('✅') ? '#059669' : '#dc2626',
+          fontSize: '14px',
+          fontWeight: 600,
+        }}>
+          {syncNotice}
+        </div>
+      )}
 
       {/* Summary Stats */}
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>

@@ -9,6 +9,7 @@ import { generateAccessToken, generateRefreshToken } from '../utils/jwt.utils'
 import { AuthRequest } from '../middleware/auth.middleware'
 import { getSocketServer } from '../config/socket'
 import { AttendanceStatus } from '@prisma/client'
+import { syncAttendanceToGoogleSheet } from '../services/googleSheets.service'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -201,6 +202,11 @@ export const mobileQrController = {
           clockInPhoto: selfieBase64,
           loginMethod: 'MOBILE_QR',
         },
+      })
+
+      // Sync Mobile QR clock-in to Google Sheet
+      await syncAttendanceToGoogleSheet(attendance.id).catch((err) => {
+        console.error(`[GOOGLE_SHEETS_SYNC_ERROR] ${err.message}`)
       })
 
       // 5 — Generate JWT tokens so desktop can log the employee in

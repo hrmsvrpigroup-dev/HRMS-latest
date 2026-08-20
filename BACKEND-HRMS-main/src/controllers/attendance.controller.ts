@@ -3,7 +3,7 @@ import { prisma } from '../config/database'
 import { AuthRequest } from '../middleware/auth.middleware'
 import { sendError, sendSuccess } from '../utils/response.utils'
 import { AttendanceStatus, UserRole } from '@prisma/client'
-import { syncAttendanceToGoogleSheet } from '../services/googleSheets.service'
+import { syncAttendanceToGoogleSheet, syncAllAttendanceToGoogleSheet } from '../services/googleSheets.service'
 
 export const attendanceController = {
   async list(req: AuthRequest, res: Response) {
@@ -156,8 +156,8 @@ export const attendanceController = {
         },
       })
 
-      // Sync clock-in to Google Sheet in background
-      syncAttendanceToGoogleSheet(attendance.id).catch((err) => {
+      // Sync clock-in to Google Sheet
+      await syncAttendanceToGoogleSheet(attendance.id).catch((err) => {
         console.error(`[GOOGLE_SHEETS_SYNC_ERROR] ${err.message}`)
       })
 
@@ -227,8 +227,8 @@ export const attendanceController = {
         },
       })
 
-      // Sync clock-out to Google Sheet in background
-      syncAttendanceToGoogleSheet(attendance.id).catch((err) => {
+      // Sync clock-out to Google Sheet
+      await syncAttendanceToGoogleSheet(attendance.id).catch((err) => {
         console.error(`[GOOGLE_SHEETS_SYNC_ERROR] ${err.message}`)
       })
 
@@ -310,8 +310,8 @@ export const attendanceController = {
         data: { idleMinutes: { increment: 2 } },
       })
 
-      // Sync updated idle time to Google Sheet in background
-      syncAttendanceToGoogleSheet(updated.id).catch((err) => {
+      // Sync updated idle time to Google Sheet
+      await syncAttendanceToGoogleSheet(updated.id).catch((err) => {
         console.error(`[GOOGLE_SHEETS_SYNC_ERROR] ${err.message}`)
       })
 
@@ -392,8 +392,8 @@ export const attendanceController = {
         },
       })
 
-      // Sync resumed shift status to Google Sheet in background
-      syncAttendanceToGoogleSheet(updated.id).catch((err) => {
+      // Sync resumed shift status to Google Sheet
+      await syncAttendanceToGoogleSheet(updated.id).catch((err) => {
         console.error(`[GOOGLE_SHEETS_SYNC_ERROR] ${err.message}`)
       })
 
@@ -462,8 +462,8 @@ export const attendanceController = {
         },
       })
 
-      // Sync manual clock-in to Google Sheet in background
-      syncAttendanceToGoogleSheet(attendance.id).catch((err) => {
+      // Sync manual clock-in to Google Sheet
+      await syncAttendanceToGoogleSheet(attendance.id).catch((err) => {
         console.error(`[GOOGLE_SHEETS_SYNC_ERROR] ${err.message}`)
       })
 
@@ -472,4 +472,19 @@ export const attendanceController = {
       return sendError(res, error.message || 'Failed to manually clock in employee', 500)
     }
   },
+
+  async syncAllGoogleSheets(req: AuthRequest, res: Response) {
+    const tenantId = req.tenantId ?? req.user?.tenantId
+    if (!tenantId) {
+      return sendError(res, 'Unauthorized', 401)
+    }
+
+    try {
+      const result = await syncAllAttendanceToGoogleSheet(tenantId)
+      return sendSuccess(res, result, `Synced ${result.synced} out of ${result.total} attendance records to Google Sheets`)
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to sync all records to Google Sheets', 500)
+    }
+  },
 }
+

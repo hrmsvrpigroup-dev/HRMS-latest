@@ -1,4 +1,5 @@
 import { prisma } from '../config/database'
+import { syncAttendanceToGoogleSheet } from '../services/googleSheets.service'
 
 export const runAttendanceJob = async () => {
   console.log('[JOBS] Checking for auto clock-out shifts (> 10 hours)...')
@@ -30,6 +31,11 @@ export const runAttendanceJob = async () => {
           },
         })
         console.log(`[JOBS] Auto clocked-out record ID: ${record.id} for employee ID: ${record.employeeId}`)
+
+        // Sync auto clock-out to Google Sheet
+        await syncAttendanceToGoogleSheet(record.id).catch((err) => {
+          console.error(`[GOOGLE_SHEETS_SYNC_ERROR] Auto clock-out sync failed for ${record.id}: ${err.message}`)
+        })
       }
     }
 

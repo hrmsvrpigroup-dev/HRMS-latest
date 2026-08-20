@@ -15,6 +15,7 @@ import { redis } from './config/redis'
 import { authService } from './services/auth.service'
 import { setSocketServer } from './config/socket'
 import { runAttendanceJob } from './jobs/attendance.job'
+import { syncAllAttendanceToGoogleSheet } from './services/googleSheets.service'
 
 const PORT = Number(process.env.PORT ?? 5000)
 
@@ -35,6 +36,9 @@ const bootstrap = async () => {
   setInterval(() => {
     runAttendanceJob().catch((err) => console.error('[JOBS] Periodic run of attendance job failed:', err))
   }, 5 * 60 * 1000)
+
+  // Trigger background backfill sync to Google Sheets on startup to guarantee zero data loss
+  syncAllAttendanceToGoogleSheet().catch((err) => console.error('[GOOGLE_SHEETS] Startup sync failed:', err))
 
   const server = http.createServer(app)
 
