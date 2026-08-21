@@ -405,10 +405,12 @@ export const attendanceController = {
 
   async manualClockIn(req: AuthRequest, res: Response) {
     const tenantId = req.tenantId ?? req.user?.tenantId
-    const { employeeId } = req.body as { employeeId?: string }
-
-    if (!tenantId) {
-      return sendError(res, 'Unauthorized or tenant context not found', 401)
+    const { employeeId, date, clockInTime, status, notes } = req.body as {
+      employeeId?: string
+      date?: string
+      clockInTime?: string
+      status?: AttendanceStatus
+      notes?: string
     }
 
     if (!employeeId) {
@@ -417,48 +419,61 @@ export const attendanceController = {
 
     try {
       const employee = await prisma.employee.findFirst({
-        where: { id: employeeId, tenantId },
+        where: tenantId ? { id: employeeId, tenantId } : { id: employeeId },
       })
       if (!employee) {
         return sendError(res, 'Employee profile not found.', 404)
       }
 
-      const todayStr = new Date().toISOString().split('T')[0]
-      const todayDate = new Date(todayStr)
+      const effectiveTenantId = tenantId || employee.tenantId
+      const targetDateStr = date || new Date().toISOString().split('T')[0]
+      const targetDate = new Date(`${targetDateStr}T00:00:00.000Z`)
+
+      let clockInDate = new Date()
+      if (clockInTime) {
+        const [hours, minutes] = clockInTime.split(':').map(Number)
+        clockInDate = new Date(targetDate)
+        clockInDate.setUTCHours(hours || 0, minutes || 0, 0, 0)
+      }
+
+      const attendanceStatus = status || AttendanceStatus.PRESENT
 
       const existingRecord = await prisma.attendance.findUnique({
         where: {
           tenantId_employeeId_date: {
-            tenantId,
+            tenantId: effectiveTenantId,
             employeeId: employee.id,
-            date: todayDate,
+            date: targetDate,
           },
         },
       })
 
       if (existingRecord?.clockIn) {
-        return sendError(res, 'Employee has already clocked in for today.', 400)
+        return sendError(res, 'Employee has already clocked in for this date.', 400)
       }
 
-      const now = new Date()
       const attendance = await prisma.attendance.upsert({
         where: {
           tenantId_employeeId_date: {
-            tenantId,
+            tenantId: effectiveTenantId,
             employeeId: employee.id,
-            date: todayDate,
+            date: targetDate,
           },
         },
         update: {
-          clockIn: now,
-          status: AttendanceStatus.PRESENT,
+          clockIn: clockInDate,
+          status: attendanceStatus,
+          loginMethod: 'MANUAL',
+          ...(notes ? { notes } : {}),
         },
         create: {
-          tenantId,
+          tenantId: effectiveTenantId,
           employeeId: employee.id,
-          date: todayDate,
-          clockIn: now,
-          status: AttendanceStatus.PRESENT,
+          date: targetDate,
+          clockIn: clockInDate,
+          status: attendanceStatus,
+          loginMethod: 'MANUAL',
+          ...(notes ? { notes } : {}),
         },
       })
 

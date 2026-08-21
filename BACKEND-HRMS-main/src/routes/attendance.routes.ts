@@ -6,7 +6,7 @@ import { tenantIsolation } from '../middleware/tenant.middleware'
 
 const router = Router()
 
-router.use(authenticate, authorize('ADMIN', 'HR', 'EMPLOYEE'), tenantIsolation)
+router.use(authenticate, authorize('SUPER_ADMIN', 'ADMIN', 'HR', 'EMPLOYEE'), tenantIsolation)
 
 router.get('/', attendanceController.list)
 router.post('/clock-in', attendanceController.clockIn)
@@ -15,7 +15,7 @@ router.get('/today', attendanceController.todayStatus)
 router.post('/idle', attendanceController.logIdle)
 router.delete('/:id/reset', attendanceController.resetShift)
 router.post('/:id/continue', attendanceController.continueShift)
-router.post('/manual-clock-in', authorize('ADMIN', 'HR'), attendanceController.manualClockIn)
-router.post('/sync-google-sheets', authorize('ADMIN', 'HR'), attendanceController.syncAllGoogleSheets)
+router.post('/manual-clock-in', authorize('SUPER_ADMIN', 'ADMIN', 'HR'), attendanceController.manualClockIn)
+router.post('/sync-google-sheets', authorize('SUPER_ADMIN', 'ADMIN', 'HR'), attendanceController.syncAllGoogleSheets)
 
 export default router
