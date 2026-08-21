@@ -3,7 +3,7 @@ import { NextFunction, Response } from 'express'
 import { prisma } from '../config/database'
 import { AuthRequest } from './auth.middleware'
 
-const RESERVED_SUBDOMAINS = new Set(['localhost', 'api', 'superadmin', 'www'])
+const RESERVED_SUBDOMAINS = new Set(['localhost', 'api', 'superadmin', 'www', 'hr', 'admin', 'employee', 'app', 'dashboard', 'portal', 'main', 'login'])
 
 const isIP = (host: string) => {
   return /^(\d{1,3}\.){3}\d{1,3}$/.test(host) || host.includes(':')
@@ -75,9 +75,9 @@ export const tenantIsolation = (req: AuthRequest, res: Response, next: NextFunct
     return next()
   }
 
-  const effectiveTenantId = req.tenantId ?? req.user.tenantId
-  if (!effectiveTenantId || !req.user.tenantId || effectiveTenantId !== req.user.tenantId) {
-    return res.status(403).json({ success: false, message: 'Forbidden: tenant mismatch' })
+  const effectiveTenantId = req.user.tenantId || req.tenantId
+  if (!effectiveTenantId) {
+    return res.status(403).json({ success: false, message: 'Forbidden: tenant context missing' })
   }
 
   req.tenantId = effectiveTenantId
