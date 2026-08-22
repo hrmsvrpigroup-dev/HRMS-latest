@@ -15,6 +15,15 @@ const INITIAL_FORM_DATA = {
   experienceLevel: 'fresher',
 }
 
+const ESSENTIAL_FIELDS: { name: string; label: string; step: number }[] = [
+  { name: 'firstName', label: 'First Name', step: 1 },
+  { name: 'lastName', label: 'Last Name', step: 1 },
+  { name: 'workEmail', label: 'Work Email', step: 1 },
+  { name: 'personalEmail', label: 'Personal Email', step: 1 },
+  { name: 'mobileNumber', label: 'Mobile Number', step: 1 },
+  { name: 'joiningDate', label: 'Joining Date', step: 2 },
+]
+
 export default function AddEmployee() {
   const navigate = useNavigate()
   
@@ -24,6 +33,7 @@ export default function AddEmployee() {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<string[]>([])
   const [created, setCreated] = useState<{ employeeCode: string; name: string; email: string } | null>(null)
 
   const [formData, setFormData] = useState(() => {
@@ -67,7 +77,11 @@ export default function AddEmployee() {
   ]
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
+    const { name, value } = e.target
+    setFormData((prev: typeof INITIAL_FORM_DATA) => ({ ...prev, [name]: value }))
+    if (value.trim() && fieldErrors.includes(name)) {
+      setFieldErrors((prev: string[]) => prev.filter(f => f !== name))
+    }
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,24 +94,22 @@ export default function AddEmployee() {
     e.preventDefault()
     setIsSubmitting(true)
     setError('')
+    setFieldErrors([])
 
-    // Basic validation before submit
-    if (!formData.firstName || !formData.lastName || !formData.workEmail) {
-      setError('First name, last name, and work email are required.')
+    // Validate all essential required fields before submit
+    const missing = ESSENTIAL_FIELDS.filter(field => !formData[field.name as keyof typeof formData]?.trim())
+
+    if (missing.length > 0) {
+      const missingKeys = missing.map(m => m.name)
+      const missingLabels = missing.map(m => m.label)
+      setFieldErrors(missingKeys)
+
+      const firstMissing = missing[0]
+      setActiveStep(firstMissing.step)
+      setError(`Missing essential employee information: Please fill in standard column(s): ${missingLabels.join(', ')}`)
       setIsSubmitting(false)
-      setActiveStep(1)
       return
     }
-    if (!formData.joiningDate) {
-      setError('Joining date is required.')
-      setIsSubmitting(false)
-      setActiveStep(2)
-      return
-    }
-
-    // Document Gating Validation disabled - all documents are optional
-
-    // Document Gating Validation disabled - all documents are optional
 
     try {
       const fd = new FormData()
@@ -113,26 +125,77 @@ export default function AddEmployee() {
       })
       clearOnboardingDraft()
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create employee. Please check all fields and try again.')
+      let serverMsg = err.response?.data?.message || 'Failed to create employee. Please check all fields and try again.'
+      
+      if (serverMsg.includes('Unique constraint failed on the fields: (`email`)')) {
+        serverMsg = `An employee account with work email "${formData.workEmail}" already exists in the system.`
+      }
+
+      setError(serverMsg)
       setIsSubmitting(false)
+
+      const detectedMissing: string[] = []
+      if (serverMsg.toLowerCase().includes('email')) {
+        detectedMissing.push('workEmail')
+      }
+      ESSENTIAL_FIELDS.forEach(field => {
+        if (!formData[field.name as keyof typeof formData]?.trim() || serverMsg.toLowerCase().includes(field.label.toLowerCase())) {
+          if (!detectedMissing.includes(field.name)) {
+            detectedMissing.push(field.name)
+          }
+        }
+      })
+
+      if (detectedMissing.length > 0) {
+        setFieldErrors(detectedMissing)
+        const firstField = ESSENTIAL_FIELDS.find(f => detectedMissing.includes(f.name))
+        if (firstField) setActiveStep(firstField.step)
+      }
     }
   }
 
-  const renderInput = ({ label, type = 'text', name, required = false, fullWidth = false, placeholder = '' }: any) => (
-    <div className={`onboard-field ${fullWidth ? 'full-width' : ''}`} key={name}>
-      <label>{label} {required && <span>*</span>}</label>
-      <input required={required} type={type} name={name} placeholder={placeholder} value={formData[name as keyof typeof formData] || ''} onChange={handleChange} />
-    </div>
-  )
+  const renderInput = ({ label, type = 'text', name, required = false, fullWidth = false, placeholder = '' }: any) => {
+    const isMissing = fieldErrors.includes(name)
+    return (
+      <div className={`onboard-field ${fullWidth ? 'full-width' : ''} ${isMissing ? 'has-field-error' : ''}`} key={name}>
+        <label>
+          {label} {required && <span>*</span>}
+          {isMissing && <span className="field-required-badge">⚠️ Column Required</span>}
+        </label>
+        <input 
+          required={required} 
+          type={type} 
+          name={name} 
+          placeholder={placeholder} 
+          value={formData[name as keyof typeof formData] || ''} 
+          onChange={handleChange}
+          className={isMissing ? 'input-error-highlight' : ''}
+        />
+        {isMissing && <div className="field-error-subtext">Please fill in this column (your other data is safely preserved).</div>}
+      </div>
+    )
+  }
 
-  const renderSelect = ({ label, name, options, fullWidth = false }: any) => (
-    <div className={`onboard-field ${fullWidth ? 'full-width' : ''}`} key={name}>
-      <label>{label}</label>
-      <select name={name} value={formData[name as keyof typeof formData]} onChange={handleChange}>
-        {options.map((opt: any) => <option key={opt.value || opt} value={opt.value || opt}>{opt.label || opt}</option>)}
-      </select>
-    </div>
-  )
+  const renderSelect = ({ label, name, options, fullWidth = false }: any) => {
+    const isMissing = fieldErrors.includes(name)
+    return (
+      <div className={`onboard-field ${fullWidth ? 'full-width' : ''} ${isMissing ? 'has-field-error' : ''}`} key={name}>
+        <label>
+          {label}
+          {isMissing && <span className="field-required-badge">⚠️ Column Required</span>}
+        </label>
+        <select 
+          name={name} 
+          value={formData[name as keyof typeof formData]} 
+          onChange={handleChange}
+          className={isMissing ? 'input-error-highlight' : ''}
+        >
+          {options.map((opt: any) => <option key={opt.value || opt} value={opt.value || opt}>{opt.label || opt}</option>)}
+        </select>
+        {isMissing && <div className="field-error-subtext">Please select an option.</div>}
+      </div>
+    )
+  }
 
   return (
     <div className="onboard-container">
@@ -209,11 +272,12 @@ export default function AddEmployee() {
                   const Icon = step.icon
                   const isActive = activeStep === step.id
                   const isCompleted = activeStep > step.id
+                  const missingInStep = ESSENTIAL_FIELDS.filter(f => f.step === step.id && fieldErrors.includes(f.name)).length
                   return (
                     <div 
                       key={step.id} 
                       onClick={() => setActiveStep(step.id)}
-                      className={`stepper-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
+                      className={`stepper-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${missingInStep > 0 ? 'step-has-error' : ''}`}
                     >
                       <div className="stepper-icon">
                         {isCompleted ? <CheckCircle size={20} /> : <Icon size={18} />}
@@ -222,7 +286,8 @@ export default function AddEmployee() {
                         <span className="stepper-title">{step.name}</span>
                         <span className="stepper-desc">{step.desc}</span>
                       </div>
-                      {isActive && <ChevronRight size={16} className="stepper-arrow" />}
+                      {missingInStep > 0 && <span className="step-error-badge">{missingInStep} required</span>}
+                      {isActive && missingInStep === 0 && <ChevronRight size={16} className="stepper-arrow" />}
                     </div>
                   )
                 })}
@@ -257,7 +322,7 @@ export default function AddEmployee() {
                         {renderInput({ label: "First Name", name: "firstName", required: true })}
                         {renderInput({ label: "Last Name", name: "lastName", required: true })}
                         {renderInput({ label: "Work Email", name: "workEmail", type: "email", required: true })}
-                        {renderInput({ label: "Personal Email", name: "personalEmail", type: "email" })}
+                        {renderInput({ label: "Personal Email", name: "personalEmail", type: "email", required: true })}
                         {renderInput({ label: "Mobile Number", name: "mobileNumber", required: true })}
                         {renderInput({ label: "Date of Birth", name: "dateOfBirth", type: "date" })}
                         {renderSelect({ label: "Gender", name: "gender", options: ['Male', 'Female', 'Other'] })}
@@ -941,6 +1006,50 @@ export default function AddEmployee() {
           opacity: 0.75;
           cursor: not-allowed;
           transform: none;
+        }
+
+        .has-field-error label {
+          color: #dc2626 !important;
+        }
+
+        .input-error-highlight {
+          border-color: #ef4444 !important;
+          background-color: #fef2f2 !important;
+          box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15) !important;
+        }
+
+        .field-required-badge {
+          color: #dc2626;
+          font-size: 0.72rem;
+          font-weight: 700;
+          margin-left: 8px;
+          background: #fee2e2;
+          padding: 2px 8px;
+          border-radius: 6px;
+          text-transform: none;
+          display: inline-block;
+        }
+
+        .field-error-subtext {
+          color: #dc2626;
+          font-size: 0.78rem;
+          margin-top: 6px;
+          font-weight: 600;
+        }
+
+        .step-has-error {
+          border: 1px solid #fca5a5 !important;
+          background: #fff5f5 !important;
+        }
+
+        .step-error-badge {
+          background: #ef4444;
+          color: white;
+          font-size: 0.7rem;
+          font-weight: 700;
+          padding: 2px 8px;
+          border-radius: 9999px;
+          margin-left: auto;
         }
 
         .error-banner {

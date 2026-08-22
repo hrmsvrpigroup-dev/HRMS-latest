@@ -14,8 +14,15 @@ export const hrOnboardingController = {
       const data = req.body
 
       // Basic Validation
-      if (!data.firstName || !data.lastName || !data.workEmail || !data.personalEmail) {
-        return sendError(res, 'Missing essential employee information', 400)
+      const missingFields: string[] = []
+      if (!data.firstName || !String(data.firstName).trim()) missingFields.push('First Name')
+      if (!data.lastName || !String(data.lastName).trim()) missingFields.push('Last Name')
+      if (!data.workEmail || !String(data.workEmail).trim()) missingFields.push('Work Email')
+      if (!data.personalEmail || !String(data.personalEmail).trim()) missingFields.push('Personal Email')
+      if (!data.joiningDate || !String(data.joiningDate).trim()) missingFields.push('Joining Date')
+
+      if (missingFields.length > 0) {
+        return sendError(res, `Missing essential employee information: ${missingFields.join(', ')}`, 400)
       }
 
       // Validation removed for UAN and Document Gating
@@ -37,6 +44,14 @@ export const hrOnboardingController = {
       })
       if (existingEmpCode) {
         return sendError(res, `Employee Code "${employeeCode}" is already in use.`, 400)
+      }
+
+      // Check if user workEmail already exists in system
+      const existingUser = await prisma.user.findUnique({
+        where: { email: data.workEmail.trim() },
+      })
+      if (existingUser) {
+        return sendError(res, `An employee account with work email "${data.workEmail}" already exists in the system.`, 400)
       }
 
       // Password logic: send activation email implies generating random or placeholder pass 
@@ -242,6 +257,9 @@ export const hrOnboardingController = {
       }, 'Employee created successfully and queued for verification.')
     } catch (err: any) {
       console.error('[onboardEmployee error]', err)
+      if (err.code === 'P2002' || (err.message && err.message.includes('Unique constraint failed on the fields: (`email`)'))) {
+        return sendError(res, `An employee account with work email "${req.body?.workEmail || ''}" already exists in the system.`, 400)
+      }
       return sendError(res, err.message || 'Failed to create employee', 500)
     }
   },
