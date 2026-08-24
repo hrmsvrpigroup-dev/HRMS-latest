@@ -410,11 +410,7 @@ export default function Dashboard() {
           stopWebcam()
           triggerHrNotification(`Employee ${fullName} clocked in (Facial Verification).`)
           // isFirstTime captures the state BEFORE the API call
-          if (isFirstTime) {
-            alert('✅ Face registered successfully! You are now clocked in.')
-          } else {
-            alert('✅ Identity verified! Clock-in confirmed via Face Recognition.')
-          }
+          alert('✅ Live selfie captured! Clock-in confirmed successfully.')
         } catch (err: any) {
           setFaceError(err.response?.data?.message || 'Face verification failed. Please try again.')
           setFaceScanning(false)
@@ -1228,15 +1224,13 @@ export default function Dashboard() {
             <div className="modal-header">
               <div className="modal-title-area">
                 <Camera className="text-blue-500" size={20} />
-                <h3>{todayStatus?.hasFaceBaseline ? 'Facial Identity Verification' : 'Register Facial Attendance Baseline'}</h3>
+                <h3>Live Selfie Attendance</h3>
               </div>
               <button className="close-btn" onClick={() => { setShowFaceModal(false); stopWebcam(); }}><X size={20} /></button>
             </div>
             <div className="modal-body text-center">
               <p className="text-sm text-gray-500 mb-4">
-                {todayStatus?.hasFaceBaseline 
-                  ? 'Verify your identity via the web camera to clock-in.' 
-                  : 'Place your face clearly in the camera frame to register your facial profile.'}
+                Capture your live selfie via the web camera to clock-in.
               </p>
               
               <div className="face-scan-viewport-wrapper">

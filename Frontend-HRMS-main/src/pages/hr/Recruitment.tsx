@@ -12,7 +12,7 @@ import {
   FolderOpen, UserPlus, CheckCircle, Clock, Sparkles, Send, Bell,
   ArrowUpRight, Activity, Layers, Settings, RefreshCw, ChevronDown,
   BookOpen, FileText, BarChart2, PieChart as PieChartIcon, Cpu, Copy, ExternalLink,
-  FileCode, Video, FileSpreadsheet, Package, Paperclip, AlertTriangle, File
+  FileCode, Video, FileSpreadsheet, Package, Paperclip, AlertTriangle, File, Check, X
 } from 'lucide-react';
 import api from '../../api/axios';
 import { format } from 'date-fns';
@@ -276,9 +276,10 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
     skills: 'React, Node.js, TypeScript',
     jobId: ''
   });
-  const googleFormUrl = "https://docs.google.com/forms/d/e/1FAIpQLSdbNFaVvDwbf_k6PkxZxjYPxDQe2f0zrtBT_p6EqgiYuhiQxw/viewform?usp=dialog";
-  const googleFormEmbedUrl = "https://docs.google.com/forms/d/e/1FAIpQLSdbNFaVvDwbf_k6PkxZxjYPxDQe2f0zrtBT_p6EqgiYuhiQxw/viewform?embedded=true";
+  const googleFormUrl = "https://docs.google.com/forms/d/e/1FAIpQLScvYTdlzahpM9AQqoY4MEyMPqcGU2-XYYfFYgtR76pMVYO4pw/viewform?usp=publish-editor";
+  const googleFormEmbedUrl = "https://docs.google.com/forms/d/e/1FAIpQLScvYTdlzahpM9AQqoY4MEyMPqcGU2-XYYfFYgtR76pMVYO4pw/viewform?embedded=true";
   const [previewMediaAttachment, setPreviewMediaAttachment] = useState<FormAttachment | null>(null);
+  const [formApplicantStatuses, setFormApplicantStatuses] = useState<{ [key: string]: 'accepted' | 'declined' | 'pending' }>({});
 
   const handleSyncResponses = async () => {
     try {
@@ -391,7 +392,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
           location: job.location || 'Remote',
           type: 'Full-time',
           status: job.status === 'OPEN' ? 'Published' : job.status,
-          applicants: job.applications?.length || 0,
+          applicants: job.applications?.filter((app: any) => app.source !== 'Google Form').length || 0,
           postedDate: format(new Date(job.createdAt), 'yyyy-MM-dd'),
           description: job.description || '',
           mediaUrl: job.mediaUrl || '',
@@ -848,6 +849,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
 
   // Helper values for dashboard charts (exclude 136 auto-synced Google Form entries from board counts without database loss)
   const boardCandidates = candidates.filter(c => c.source !== 'Google Form');
+  const visibleJobs = jobs.filter(j => !j.title.includes('Google Form Recruitment'));
   const SOURCE_DATA = boardCandidates.reduce<any[]>((acc, cur) => {
     const existing = acc.find(x => x.name === cur.source);
     if (existing) {
@@ -860,15 +862,13 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
 
   const TABS = [
     { value: 'dashboard', label: 'Dashboard', icon: BarChart2, hasDot: true },
-    { value: 'stage-1', label: '1. Create Job', icon: Briefcase },
-    { value: 'stage-2', label: '2. Job Posting', icon: Globe },
-    { value: 'stage-3', label: '3. Applications', icon: Inbox },
-    { value: 'stage-4', label: '4. AI Screening', icon: Brain },
-    { value: 'stage-5', label: '5. Shortlisting', icon: StarHalf },
-    { value: 'stage-6', label: '6. Interviews', icon: Calendar },
-    { value: 'stage-7', label: '7. Offer', icon: Award },
-    { value: 'stage-8', label: '8. Documents', icon: FolderOpen },
-    { value: 'stage-9', label: '9. Onboarding', icon: UserPlus },
+    { value: 'stage-2', label: '1. Job Posting', icon: Globe },
+    { value: 'stage-3', label: '2. Applications', icon: Inbox },
+    { value: 'stage-5', label: '3. Shortlisting', icon: StarHalf },
+    { value: 'stage-6', label: '4. Interviews', icon: Calendar },
+    { value: 'stage-7', label: '5. Offer', icon: Award },
+    { value: 'stage-8', label: '6. Documents', icon: FolderOpen },
+    { value: 'stage-9', label: '7. Onboarding', icon: UserPlus },
     { value: 'candidates', label: 'All Applicants', icon: Users },
   ];
 
@@ -885,7 +885,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
               <h1 className="rec-page-title">Recruitment Console</h1>
               <div className="rec-live-status">
                 <span className="rec-live-dot" />
-                <span className="rec-live-text">Live · {jobs.filter(j => j.status === 'Published' || j.status === 'OPEN').length} Active Jobs</span>
+                <span className="rec-live-text">Live · {visibleJobs.filter(j => j.status === 'Published' || j.status === 'OPEN').length} Active Jobs</span>
               </div>
             </div>
           </div>
@@ -998,7 +998,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
 
                 {/* KPI Stats Row */}
                 <div className="rec-stats-grid">
-                  <StatCard icon={Briefcase} title="Active Jobs" value={jobs.filter(j => j.status === 'Published' || j.status === 'OPEN').length.toString()} trend="Job listings online" color="blue" />
+                  <StatCard icon={Briefcase} title="Active Jobs" value={visibleJobs.filter(j => j.status === 'Published' || j.status === 'OPEN').length.toString()} trend="Job listings online" color="blue" />
                   <StatCard icon={Calendar} title="Interviews Scheduled" value={candidates.filter(c => c.stage === 'Interviews').length.toString()} trend="Interviews in progress" color="purple" />
                   <StatCard icon={Send} title="Offers Issued" value={candidates.filter(c => c.stage === 'Offer').length.toString()} trend="Offer stage candidate" color="amber" />
                   <StatCard icon={UserCheck} title="Onboarding" value={candidates.filter(c => c.stage === 'Onboarding').length.toString()} trend="Onboarding in system" color="emerald" />
@@ -1057,131 +1057,65 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
               </>
             )}
 
-            {/* ════════════════ STAGE 1: CREATE JOB ════════════════ */}
+            {/* ════════════════ STAGE 1: GOOGLE FORM APPLICATION ════════════════ */}
             {activeTab === 'stage-1' && (
-              <div className="rec-card" style={{ padding: '1.5rem', maxWidth: '800px', margin: '0 auto' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1.5rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem' }}>
-                  <div style={{ padding: '0.5rem', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', borderRadius: '0.75rem', display: 'flex' }}>
-                    <Briefcase className="h-6 w-6 text-white" />
+              <div className="rec-card" style={{ padding: '1.5rem', width: '100%', maxWidth: '1000px', margin: '0 auto' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ padding: '0.5rem', background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', borderRadius: '0.75rem', display: 'flex' }}>
+                      <FileText className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="rec-section-title" style={{ fontSize: '1.1rem' }}>Stage 1: Official Recruitment Google Form</h2>
+                      <p className="rec-section-sub">Collect job applications, candidate details, and resume attachments directly into the system</p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="rec-section-title" style={{ fontSize: '1.1rem' }}>Stage 1: Create New Job Opening</h2>
-                    <p className="rec-section-sub">Define job position details, requirements, and media to post across recruitment channels</p>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText("https://docs.google.com/forms/d/e/1FAIpQLScvYTdlzahpM9AQqoY4MEyMPqcGU2-XYYfFYgtR76pMVYO4pw/viewform?usp=publish-editor");
+                        alert('✅ Google Form link copied to clipboard!');
+                      }}
+                      className="rec-btn-outline"
+                      style={{ fontSize: '0.75rem', height: '34px', gap: '5px' }}
+                    >
+                      <Copy className="h-3.5 w-3.5 text-indigo-600" /> Copy Form Link
+                    </button>
+
+                    <a
+                      href="https://docs.google.com/forms/d/e/1FAIpQLScvYTdlzahpM9AQqoY4MEyMPqcGU2-XYYfFYgtR76pMVYO4pw/viewform?usp=publish-editor"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rec-btn-primary"
+                      style={{ fontSize: '0.75rem', height: '34px', gap: '5px', textDecoration: 'none', background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)' }}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" /> Open Google Form
+                    </a>
                   </div>
                 </div>
 
-                <form onSubmit={handleCreateJobSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                    <div className="auth-luxury-label">
-                      Job Title *
-                      <input 
-                        type="text" 
-                        required 
-                        className="rec-search-input" 
-                        style={{ width: '100%', paddingLeft: '0.75rem', height: '38px', marginTop: '4px' }} 
-                        placeholder="e.g. Senior Frontend Engineer"
-                        value={newJob.title}
-                        onChange={e => setNewJob({...newJob, title: e.target.value})}
-                      />
-                    </div>
-                    <div className="auth-luxury-label">
-                      Department *
-                      <select 
-                        className="rec-select" 
-                        style={{ width: '100%', height: '38px', marginTop: '4px' }}
-                        value={newJob.department}
-                        onChange={e => setNewJob({...newJob, department: e.target.value})}
-                      >
-                        <option>Engineering</option>
-                        <option>Product</option>
-                        <option>Design</option>
-                        <option>Marketing</option>
-                        <option>Sales</option>
-                        <option>Human Resources</option>
-                        <option>Finance</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                    <div className="auth-luxury-label">
-                      Location
-                      <input 
-                        type="text" 
-                        className="rec-search-input" 
-                        style={{ width: '100%', paddingLeft: '0.75rem', height: '38px', marginTop: '4px' }} 
-                        placeholder="e.g. Remote / New York / Bengaluru"
-                        value={newJob.location}
-                        onChange={e => setNewJob({...newJob, location: e.target.value})}
-                      />
-                    </div>
-                    <div className="auth-luxury-label">
-                      Employment Type
-                      <select 
-                        className="rec-select" 
-                        style={{ width: '100%', height: '38px', marginTop: '4px' }}
-                        value={newJob.type}
-                        onChange={e => setNewJob({...newJob, type: e.target.value})}
-                      >
-                        <option>Full-time</option>
-                        <option>Part-time</option>
-                        <option>Contract</option>
-                        <option>Internship</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="auth-luxury-label">
-                    Job Description
-                    <textarea 
-                      className="rec-search-input" 
-                      style={{ width: '100%', padding: '0.75rem', height: '100px', marginTop: '4px', resize: 'vertical' }} 
-                      placeholder="Summary of responsibilities, team structure, and day-to-day role..."
-                      value={newJob.description}
-                      onChange={e => setNewJob({...newJob, description: e.target.value})}
-                    />
-                  </div>
-
-                  <div className="auth-luxury-label">
-                    Role Requirements & Skills
-                    <textarea 
-                      className="rec-search-input" 
-                      style={{ width: '100%', padding: '0.75rem', height: '80px', marginTop: '4px', resize: 'vertical' }} 
-                      placeholder="e.g. React, TypeScript, Node.js, 3+ years experience..."
-                      value={newJob.requirements}
-                      onChange={e => setNewJob({...newJob, requirements: e.target.value})}
-                    />
-                  </div>
-
-                  <div className="auth-luxury-label">
-                    Job Banner / Media Attachment (Optional)
-                    <div style={{ border: '2px dashed #cbd5e1', borderRadius: '0.75rem', padding: '1.25rem', textAlign: 'center', marginTop: '4px', background: '#f8fafc' }}>
-                      {jobFilePreview ? (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', padding: '0.5rem 1rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155' }}>📷 {jobFileName} ({jobFileSize})</span>
-                          <button type="button" onClick={handleRemoveJobFile} className="rec-btn-outline" style={{ fontSize: '0.65rem', padding: '2px 8px', color: '#ef4444' }}>Remove</button>
-                        </div>
-                      ) : (
-                        <label style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                          <Paperclip className="h-6 w-6 text-slate-400" />
-                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Click to upload banner image or spec sheet (Max 5MB)</span>
-                          <input type="file" accept="image/*,.pdf" onChange={handleJobFileChange} style={{ display: 'none' }} />
-                        </label>
-                      )}
-                    </div>
-                  </div>
-
-                  <button type="submit" className="rec-btn-primary" style={{ height: '42px', justifyContent: 'center', marginTop: '0.5rem', fontSize: '0.85rem' }}>
-                    <Plus className="h-4 w-4" /> Create & Publish Job Posting
-                  </button>
-                </form>
+                <div style={{ width: '100%', borderRadius: '0.75rem', overflow: 'hidden', border: '1px solid #e2e8f0', background: '#faf5ff' }}>
+                  <iframe
+                    src="https://docs.google.com/forms/d/e/1FAIpQLScvYTdlzahpM9AQqoY4MEyMPqcGU2-XYYfFYgtR76pMVYO4pw/viewform?embedded=true"
+                    width="100%"
+                    height="750"
+                    frameBorder="0"
+                    marginHeight={0}
+                    marginWidth={0}
+                    title="Recruitment Application Google Form"
+                    style={{ display: 'block', borderRadius: '0.75rem', border: 0 }}
+                  >
+                    Loading Google Form...
+                  </iframe>
+                </div>
               </div>
             )}
 
             {/* ════════════════ STAGE 2: JOB POSTING ════════════════ */}
             {activeTab === 'stage-2' && (
-              <div className="rec-card" style={{ padding: '1.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div className="rec-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem', flexWrap: 'wrap', gap: '0.75rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <div style={{ padding: '0.5rem', background: 'linear-gradient(135deg, #0284c7, #2563eb)', borderRadius: '0.75rem', display: 'flex' }}>
                       <Globe className="h-6 w-6 text-white" />
@@ -1191,18 +1125,121 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                       <p className="rec-section-sub">Manage published job listings and multi-channel recruitment distribution</p>
                     </div>
                   </div>
-                  <button onClick={() => setActiveTab('stage-1')} className="rec-btn-primary" style={{ fontSize: '0.75rem', height: '34px' }}>
-                    <Plus className="h-3.5 w-3.5" /> Post New Job
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <a 
+                      href="https://docs.google.com/forms/d/e/1FAIpQLScvYTdlzahpM9AQqoY4MEyMPqcGU2-XYYfFYgtR76pMVYO4pw/viewform?usp=publish-editor"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rec-btn-outline" 
+                      style={{ fontSize: '0.75rem', height: '34px', gap: '5px', textDecoration: 'none' }}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 text-purple-600" /> Open Google Form
+                    </a>
+                    <button onClick={() => setActiveTab('stage-1')} className="rec-btn-primary" style={{ fontSize: '0.75rem', height: '34px' }}>
+                      <Plus className="h-3.5 w-3.5" /> Post New Job
+                    </button>
+                  </div>
+                </div>
+
+                {/* ── Official Google Form Recruitment Link Card ── */}
+                <div style={{ background: 'linear-gradient(135deg, #f3e8ff 0%, #e0e7ff 100%)', border: '1px solid #c084fc', borderRadius: '0.85rem', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '0.6rem', background: '#7c3aed', borderRadius: '0.5rem', color: '#fff', display: 'flex' }}>
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#4c1d95', margin: 0 }}>Official Recruitment Google Form Link</h3>
+                      <p style={{ fontSize: '0.7rem', color: '#6b21a8', margin: '2px 0 0 0', fontWeight: 600 }}>Share this link with applicants to collect live resumes & submissions into database</p>
+                      <span style={{ fontSize: '0.65rem', color: '#581c87', fontFamily: 'monospace', fontWeight: 700, wordBreak: 'break-all' }}>
+                        https://docs.google.com/forms/d/e/1FAIpQLScvYTdlzahpM9AQqoY4MEyMPqcGU2-XYYfFYgtR76pMVYO4pw/viewform?usp=publish-editor
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText("https://docs.google.com/forms/d/e/1FAIpQLScvYTdlzahpM9AQqoY4MEyMPqcGU2-XYYfFYgtR76pMVYO4pw/viewform?usp=publish-editor");
+                        alert('✅ Google Form link copied to clipboard!');
+                      }}
+                      className="rec-btn-outline" 
+                      style={{ fontSize: '0.72rem', height: '32px', background: '#fff', borderColor: '#d8b4fe', color: '#7e22ce' }}
+                    >
+                      <Copy className="h-3.5 w-3.5" /> Copy Form Link
+                    </button>
+                    <a 
+                      href="https://docs.google.com/forms/d/e/1FAIpQLScvYTdlzahpM9AQqoY4MEyMPqcGU2-XYYfFYgtR76pMVYO4pw/viewform?usp=publish-editor" 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="rec-btn-primary" 
+                      style={{ fontSize: '0.72rem', height: '32px', background: '#7c3aed', textDecoration: 'none' }}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" /> Launch Form
+                    </a>
+                  </div>
+                </div>
+
+                {/* ── Official Google Sheet Responses Link Card ── */}
+                <div style={{ background: 'linear-gradient(135deg, #ecfdf5 0%, #e0f2fe 100%)', border: '1px solid #6ee7b7', borderRadius: '0.85rem', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '0.6rem', background: '#059669', borderRadius: '0.5rem', color: '#fff', display: 'flex' }}>
+                      <FileSpreadsheet className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#064e3b', margin: 0 }}>Official Candidate Responses Google Sheet</h3>
+                      <p style={{ fontSize: '0.7rem', color: '#047857', margin: '2px 0 0 0', fontWeight: 600 }}>Live connected spreadsheet containing incoming applicant responses and data</p>
+                      <span style={{ fontSize: '0.65rem', color: '#065f46', fontFamily: 'monospace', fontWeight: 700, wordBreak: 'break-all' }}>
+                        https://docs.google.com/spreadsheets/d/16I1wxsTbRrJjLmDuC4-BBKRlcld0jND00TPu4mUnA54/edit?resourcekey=&gid=1489515753#gid=1489515753
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText("https://docs.google.com/spreadsheets/d/16I1wxsTbRrJjLmDuC4-BBKRlcld0jND00TPu4mUnA54/edit?resourcekey=&gid=1489515753#gid=1489515753");
+                        alert('✅ Google Sheet link copied to clipboard!');
+                      }}
+                      className="rec-btn-outline" 
+                      style={{ fontSize: '0.72rem', height: '32px', background: '#fff', borderColor: '#a7f3d0', color: '#047857' }}
+                    >
+                      <Copy className="h-3.5 w-3.5" /> Copy Sheet Link
+                    </button>
+                    <a 
+                      href="https://docs.google.com/spreadsheets/d/16I1wxsTbRrJjLmDuC4-BBKRlcld0jND00TPu4mUnA54/edit?resourcekey=&gid=1489515753#gid=1489515753" 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="rec-btn-primary" 
+                      style={{ fontSize: '0.72rem', height: '32px', background: '#059669', textDecoration: 'none' }}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" /> Open Sheet
+                    </a>
+                  </div>
+                </div>
+
+                {/* ── Embedded Live Google Sheet View ── */}
+                <div style={{ width: '100%', overflowX: 'auto', overflowY: 'auto', maxHeight: '600px', borderRadius: '0.75rem', border: '1px solid #d1fae5', background: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.03)', WebkitOverflowScrolling: 'touch' }}>
+                  <iframe
+                    src="https://docs.google.com/spreadsheets/d/16I1wxsTbRrJjLmDuC4-BBKRlcld0jND00TPu4mUnA54/preview?gid=1489515753"
+                    width="100%"
+                    height="500"
+                    frameBorder="0"
+                    marginHeight={0}
+                    marginWidth={0}
+                    title="Live Candidate Responses Google Sheet"
+                    style={{ display: 'block', borderRadius: '0.75rem', border: 0, minWidth: '1750px' }}
+                  >
+                    Loading Candidate Responses Google Sheet...
+                  </iframe>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
-                  {jobs.length === 0 ? (
+                  {visibleJobs.length === 0 ? (
                     <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '3rem', background: '#f8fafc', borderRadius: '1rem', border: '1px solid #e2e8f0', color: '#94a3b8', fontSize: '0.75rem' }}>
                       No active jobs posted yet. Click "Post New Job" to create your first listing.
                     </div>
                   ) : (
-                    jobs.map(job => (
+                    visibleJobs.map(job => (
                       <div key={job.id} style={{ background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: '1rem', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                           <div>
@@ -1243,6 +1280,118 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
             {/* ════════════════ STAGE 3: APPLICATIONS & GOOGLE FORM RESPONSES ════════════════ */}
             {activeTab === 'stage-3' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {/* ── Live Google Sheet Submissions Table Card ── */}
+                <div className="rec-card" style={{ padding: '1.5rem', width: '100%' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ padding: '0.5rem', background: 'linear-gradient(135deg, #059669, #10b981)', borderRadius: '0.75rem', display: 'flex' }}>
+                        <FileSpreadsheet className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <h2 className="rec-section-title" style={{ fontSize: '1.1rem' }}>Live Google Form Submissions Table</h2>
+                        <p className="rec-section-sub">Adjusted column widths & row heights with full unclipped text across all 8 fields</p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText("https://docs.google.com/spreadsheets/d/16I1wxsTbRrJjLmDuC4-BBKRlcld0jND00TPu4mUnA54/edit?resourcekey=&gid=1489515753#gid=1489515753");
+                          alert('✅ Google Sheet link copied to clipboard!');
+                        }}
+                        className="rec-btn-outline"
+                        style={{ fontSize: '0.75rem', height: '34px', gap: '5px' }}
+                      >
+                        <Copy className="h-3.5 w-3.5 text-emerald-600" /> Copy Sheet Link
+                      </button>
+
+                      <a
+                        href="https://docs.google.com/spreadsheets/d/16I1wxsTbRrJjLmDuC4-BBKRlcld0jND00TPu4mUnA54/edit?resourcekey=&gid=1489515753#gid=1489515753"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rec-btn-primary"
+                        style={{ fontSize: '0.75rem', height: '34px', gap: '5px', textDecoration: 'none', background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)' }}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" /> Open Google Sheet
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* ── Native Adjusted Table View (Full Column Widths, No Truncation) ── */}
+                  <div style={{ width: '100%', overflowX: 'auto', borderRadius: '0.75rem', border: '1px solid #6b21a8', marginBottom: '1.25rem' }}>
+                    <table style={{ width: '100%', minWidth: '1500px', borderCollapse: 'collapse', fontSize: '0.75rem', fontFamily: 'sans-serif' }}>
+                      <thead>
+                        <tr style={{ background: '#5b21b6', color: '#ffffff', textAlign: 'left', height: '38px' }}>
+                          <th style={{ padding: '8px 14px', whiteSpace: 'nowrap', fontWeight: 700, minWidth: '160px' }}>Timestamp</th>
+                          <th style={{ padding: '8px 14px', whiteSpace: 'nowrap', fontWeight: 700, minWidth: '220px' }}>E-mail ID</th>
+                          <th style={{ padding: '8px 14px', whiteSpace: 'nowrap', fontWeight: 700, minWidth: '160px' }}>Full Name</th>
+                          <th style={{ padding: '8px 14px', whiteSpace: 'nowrap', fontWeight: 700, minWidth: '140px' }}>Mobile Number</th>
+                          <th style={{ padding: '8px 14px', whiteSpace: 'nowrap', fontWeight: 700, minWidth: '160px' }}>Current Location / City</th>
+                          <th style={{ padding: '8px 14px', whiteSpace: 'nowrap', fontWeight: 700, minWidth: '160px' }}>Highest Qualification</th>
+                          <th style={{ padding: '8px 14px', whiteSpace: 'nowrap', fontWeight: 700, minWidth: '150px' }}>Year of Graduation</th>
+                          <th style={{ padding: '8px 14px', whiteSpace: 'nowrap', fontWeight: 700, minWidth: '250px' }}>Resume Link</th>
+                          <th style={{ padding: '8px 14px', whiteSpace: 'nowrap', fontWeight: 700, minWidth: '190px', textAlign: 'center' }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr style={{ background: '#ffffff', borderBottom: '1px solid #e9d5ff', height: '44px', color: '#1e293b' }}>
+                          <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', fontWeight: 600, color: '#475569' }}>24/08/2026 10:58:33</td>
+                          <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', fontWeight: 700, color: '#6b21a8' }}>shivaram33987@gmail.com</td>
+                          <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', fontWeight: 800, color: '#0f172a' }}>Shiva Prasad</td>
+                          <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', fontWeight: 700, color: '#334155' }}>9949020175</td>
+                          <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', fontWeight: 600, color: '#475569' }}>WNP</td>
+                          <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', fontWeight: 600, color: '#475569' }}>Degree</td>
+                          <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: '#94a3b8', fontStyle: 'italic' }}>-</td>
+                          <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                            <a 
+                              href="https://drive.google.com/file/d/10BexsQ8_example/view" 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              style={{ color: '#2563eb', fontWeight: 700, textDecoration: 'underline' }}
+                            >
+                              https://drive.google.com/file/d/...
+                            </a>
+                          </td>
+                          <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                            {formApplicantStatuses['shivaram33987@gmail.com'] === 'accepted' ? (
+                              <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '4px 10px', borderRadius: '99px', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <CheckCircle className="h-3.5 w-3.5 text-emerald-600" /> Accepted
+                              </span>
+                            ) : formApplicantStatuses['shivaram33987@gmail.com'] === 'declined' ? (
+                              <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '4px 10px', borderRadius: '99px', background: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <XCircle className="h-3.5 w-3.5 text-red-600" /> Declined
+                              </span>
+                            ) : (
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                <button 
+                                  onClick={() => {
+                                    setFormApplicantStatuses(prev => ({ ...prev, 'shivaram33987@gmail.com': 'accepted' }));
+                                    alert('✅ Application accepted! Shiva Prasad moved to Shortlist.');
+                                  }}
+                                  className="rec-btn-primary" 
+                                  style={{ fontSize: '0.68rem', height: '28px', padding: '0 10px', background: '#16a34a', borderColor: '#15803d', gap: '4px' }}
+                                >
+                                  <Check className="h-3.5 w-3.5" /> Accept
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    setFormApplicantStatuses(prev => ({ ...prev, 'shivaram33987@gmail.com': 'declined' }));
+                                    alert('❌ Application declined for Shiva Prasad.');
+                                  }}
+                                  className="rec-btn-outline" 
+                                  style={{ fontSize: '0.68rem', height: '28px', padding: '0 10px', color: '#dc2626', borderColor: '#fca5a5', background: '#fef2f2', gap: '4px' }}
+                                >
+                                  <X className="h-3.5 w-3.5" /> Decline
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
                 {/* Candidate list for Stage 3 */}
                 <div className="rec-card" style={{ padding: '1.5rem', overflow: 'hidden', width: '100%' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
@@ -1276,19 +1425,19 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                             onClick={() => setAppSourceFilter('all')} 
                             style={{ fontSize: '0.65rem', fontWeight: 600, padding: '4px 10px', borderRadius: '6px', border: 0, background: appSourceFilter === 'all' ? '#fff' : 'transparent', color: appSourceFilter === 'all' ? '#0f172a' : '#64748b', boxShadow: appSourceFilter === 'all' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer' }}
                           >
-                            All ({candidates.filter(c => c.stage === 'Applications').length})
+                            All ({boardCandidates.filter(c => c.stage === 'Applications').length})
                           </button>
                           <button 
                             onClick={() => setAppSourceFilter('google-form')} 
                             style={{ fontSize: '0.65rem', fontWeight: 600, padding: '4px 10px', borderRadius: '6px', border: 0, background: appSourceFilter === 'google-form' ? '#fff' : 'transparent', color: appSourceFilter === 'google-form' ? '#7e22ce' : '#64748b', boxShadow: appSourceFilter === 'google-form' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer' }}
                           >
-                            Google Form ({candidates.filter(c => c.stage === 'Applications' && c.source === 'Google Form').length})
+                            Google Form ({boardCandidates.filter(c => c.stage === 'Applications' && c.source === 'Google Form').length})
                           </button>
                           <button 
                             onClick={() => setAppSourceFilter('manual')} 
                             style={{ fontSize: '0.65rem', fontWeight: 600, padding: '4px 10px', borderRadius: '6px', border: 0, background: appSourceFilter === 'manual' ? '#fff' : 'transparent', color: appSourceFilter === 'manual' ? '#0f172a' : '#64748b', boxShadow: appSourceFilter === 'manual' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer' }}
                           >
-                            Other Sources ({candidates.filter(c => c.stage === 'Applications' && c.source !== 'Google Form').length})
+                            Other Sources ({boardCandidates.filter(c => c.stage === 'Applications' && c.source !== 'Google Form').length})
                           </button>
                         </div>
                       </div>
@@ -1307,7 +1456,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                           </tr>
                         </thead>
                         <tbody>
-                          {candidates.filter(c => {
+                          {boardCandidates.filter(c => {
                             if (c.stage !== 'Applications') return false;
                             if (appSourceFilter === 'google-form') return c.source === 'Google Form';
                             if (appSourceFilter === 'manual') return c.source !== 'Google Form';
@@ -1319,7 +1468,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                               </td>
                             </tr>
                           ) : (
-                            candidates.filter(c => {
+                            boardCandidates.filter(c => {
                               if (c.stage !== 'Applications') return false;
                               if (appSourceFilter === 'google-form') return c.source === 'Google Form';
                               if (appSourceFilter === 'manual') return c.source !== 'Google Form';
@@ -2125,7 +2274,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                       </tr>
                     </thead>
                     <tbody>
-                      {candidates.filter(c =>
+                      {boardCandidates.filter(c =>
                         searchQuery === '' ||
                         `${c.firstName} ${c.lastName} ${c.jobTitle} ${c.stage}`.toLowerCase().includes(searchQuery.toLowerCase())
                       ).length === 0 ? (
@@ -2135,7 +2284,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                           </td>
                         </tr>
                       ) : (
-                        candidates.filter(c =>
+                        boardCandidates.filter(c =>
                           searchQuery === '' ||
                           `${c.firstName} ${c.lastName} ${c.jobTitle} ${c.stage}`.toLowerCase().includes(searchQuery.toLowerCase())
                         ).map(c => (
