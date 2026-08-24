@@ -7,6 +7,9 @@ import { tenantIsolation } from '../middleware/tenant.middleware'
 
 const router = Router()
 
+// Public real-time Google Form/Sheet response poll route
+router.get('/live-google-responses', recruitmentController.fetchLiveSheetData)
+
 router.use(authenticate, authorize('ADMIN', 'HR'), tenantIsolation)
 router.get('/jobs', recruitmentController.jobs)
 router.post('/jobs', recruitmentController.createJob)
