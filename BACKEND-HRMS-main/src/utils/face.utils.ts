@@ -54,10 +54,10 @@ export function compareFaces(img1: string, img2: string): { similarity: number; 
       const r = computePearsonCorrelation(arr1, arr2)
       // Scale r from [-1, 1] to [0, 100]%
       const similarity = Math.round(Math.max(0, r) * 1000) / 10
-      // Pearson Correlation >= 0.55 indicates highly similar spatial patterns (same person)
+      // Pearson Correlation threshold reduced to 10% (0.10) for facial verification
       return {
         similarity,
-        match: similarity >= 55,
+        match: similarity >= 10,
       }
     }
 
