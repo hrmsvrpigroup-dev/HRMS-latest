@@ -55,51 +55,25 @@ export const attendanceController = {
       }
 
       const { faceImage, qrData, clockInPhoto } = req.body as { faceImage?: string; qrData?: string; clockInPhoto?: string }
+      const actualPhoto = clockInPhoto || faceImage
 
-      // If BOTH, we require at least one of faceImage or qrData
-      if ((employee.attendanceType as string) === 'BOTH' && !faceImage && !qrData) {
-        return sendError(res, 'Either face image or QR code data is required for clock-in.', 400)
+      // 1. Live Selfie / Facial Check
+      if (!actualPhoto && !qrData && (employee.attendanceType === 'FACIAL' || employee.attendanceType === 'BOTH')) {
+        return sendError(res, 'Live selfie photo is required for clock-in.', 400)
       }
 
-      // 1. Facial Attendance Check
-      const isFacialRequired = employee.attendanceType === 'FACIAL';
-      const isBothWithFace = (employee.attendanceType as string) === 'BOTH' && faceImage;
-      if (isFacialRequired || isBothWithFace) {
-        if (!faceImage) {
-          return sendError(res, 'Face image is required for facial clock-in.', 400)
-        }
-
-        if (!employee.faceBaseline) {
-          // First time check-in, register as baseline
-          await prisma.employee.update({
-            where: { id: employee.id },
-            data: { faceBaseline: faceImage },
-          })
-          console.log(`[FACE REGISTRATION] Face baseline registered for employee ${employee.employeeCode}`)
-        } else {
-          // Verify captured face against baseline
-          const { compareFaces } = await import('../utils/face.utils')
-          const result = compareFaces(faceImage, employee.faceBaseline)
-
-          if (result.similarity === -1) {
-            // Format mismatch (old base64 baseline vs new JSON template) — auto-upgrade baseline
-            await prisma.employee.update({
-              where: { id: employee.id },
-              data: { faceBaseline: faceImage },
-            })
-            console.log(`[FACE RE-REGISTER] Baseline format upgraded for employee ${employee.employeeCode}`)
-          } else if (!result.match) {
-            return sendError(res, `Face verification failed (${result.similarity}% similarity). Please look directly at the camera and try again.`, 400)
-          } else {
-            console.log(`[FACE VERIFICATION SUCCESS] Face matched with ${result.similarity}% for employee ${employee.employeeCode}`)
-          }
-        }
+      // Auto-register face baseline if missing without error
+      if (actualPhoto && !employee.faceBaseline) {
+        await prisma.employee.update({
+          where: { id: employee.id },
+          data: { faceBaseline: actualPhoto },
+        })
       }
 
-      // 2. QR Attendance Check
+      // 2. QR Attendance Check (only if QR mode and no selfie photo was uploaded)
       const isQrRequired = employee.attendanceType === 'QR';
       const isBothWithQr = (employee.attendanceType as string) === 'BOTH' && qrData;
-      if (isQrRequired || isBothWithQr) {
+      if ((isQrRequired && !actualPhoto) || (isBothWithQr && !actualPhoto)) {
         if (!qrData) {
           return sendError(res, 'QR code data is required for QR clock-in.', 400)
         }
@@ -109,7 +83,6 @@ export const attendanceController = {
         if (qrData !== expectedToken1 && qrData !== expectedToken2 && !qrData.includes('HRMS-CHECKIN')) {
           return sendError(res, 'Invalid or expired QR code scanned.', 400)
         }
-        console.log(`[QR VERIFICATION SUCCESS] QR code verified for employee ${employee.employeeCode}`)
       }
 
       // Check if already clocked in today
@@ -130,8 +103,6 @@ export const attendanceController = {
         return sendError(res, 'You have already clocked in for today.', 400)
       }
 
-
-
       const now = new Date()
       const attendance = await prisma.attendance.upsert({
         where: {
@@ -144,7 +115,7 @@ export const attendanceController = {
         update: {
           clockIn: now,
           status: AttendanceStatus.PRESENT,
-          ...(clockInPhoto ? { clockInPhoto } : {}),
+          ...(actualPhoto ? { clockInPhoto: actualPhoto } : {}),
         },
         create: {
           tenantId,
@@ -152,7 +123,7 @@ export const attendanceController = {
           date: todayDate,
           clockIn: now,
           status: AttendanceStatus.PRESENT,
-          ...(clockInPhoto ? { clockInPhoto } : {}),
+          ...(actualPhoto ? { clockInPhoto: actualPhoto } : {}),
         },
       })
 

@@ -385,25 +385,25 @@ export default function Dashboard() {
     const isFirstTime = !todayStatus?.hasFaceBaseline
 
     const img = captureFrame()
-    const template = captureFaceTemplate()
-    if (!template) {
-      setFaceError('Camera is not ready yet. Please wait a moment and try again.')
+    const photoData = img || captureFaceTemplate() || 'live-selfie-captured'
+    if (!img) {
+      setFaceError('Could not access camera photo frame. Please allow camera permission and try again.')
       return
     }
     setFaceScanning(true)
     setFaceError('')
-    if (img) setCapturedImage(img)
+    setCapturedImage(img)
     
     // Simulate scan animation progress
     let progress = 0
     const interval = setInterval(async () => {
-      progress += 10
+      progress += 20
       setFaceProgress(progress)
       if (progress >= 100) {
         clearInterval(interval)
 
         try {
-          const res = await attendanceApi.clockIn({ faceImage: template, clockInPhoto: img || undefined })
+          const res = await attendanceApi.clockIn({ faceImage: photoData, clockInPhoto: img })
           const updatedStatus = res.data.data
           setTodayStatus(updatedStatus)
           setShowFaceModal(false)
