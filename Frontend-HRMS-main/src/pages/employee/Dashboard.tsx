@@ -210,98 +210,118 @@ export default function Dashboard() {
   }, [])
 
   // ── Idle Detection Engine ──────────────────────────────────────────────────
+  // Refs track state without triggering re-renders or re-running the effect
+  const showIdleAlertRef    = React.useRef(false)
+  const idleLogIntervalRef  = React.useRef<ReturnType<typeof setInterval> | null>(null)
+
   useEffect(() => {
-    const isClockedIn = !!todayStatus?.clockIn
+    const isClockedIn  = !!todayStatus?.clockIn
     const isClockedOut = !!todayStatus?.clockOut
-    const shouldTrack = isClockedIn && !isClockedOut
+    const shouldTrack  = isClockedIn && !isClockedOut
+
+    // ── Cleanup helper ────────────────────────────────────────────────────
+    const stopAllTimers = () => {
+      if (idleTimerRef.current)    { clearInterval(idleTimerRef.current);    idleTimerRef.current    = null }
+      if (idleLogIntervalRef.current) { clearInterval(idleLogIntervalRef.current); idleLogIntervalRef.current = null }
+    }
 
     if (!shouldTrack) {
-      // Clean up if shift ended
-      if (idleTimerRef.current) clearInterval(idleTimerRef.current)
+      stopAllTimers()
+      lastActivityRef.current    = Date.now()
+      idleAlertLoggedRef.current = false
+      showIdleAlertRef.current   = false
+      setShowIdleAlert(false)
+      setIdleSeconds(0)
       return
     }
 
-    const resetActivity = () => {
+    // ── Fresh start whenever clock-in state changes ───────────────────────
+    stopAllTimers()
+    lastActivityRef.current    = Date.now()   // ← start counting from NOW, not page-load
+    idleAlertLoggedRef.current = false
+    showIdleAlertRef.current   = false
+    setShowIdleAlert(false)
+    setIdleSeconds(0)
+
+    // ── Activity reset: fired on any real mouse/keyboard input ─────────────
+    // Uses document so it captures events even when a child iframe has focus.
+    // Does NOT reset on focus/blur events — window focus is irrelevant;
+    // we care only about physical cursor/keyboard movement.
+    const onActivity = () => {
       lastActivityRef.current = Date.now()
-      if (showIdleAlert) {
-        setShowIdleAlert(false)
+      if (showIdleAlertRef.current) {
+        showIdleAlertRef.current   = false
         idleAlertLoggedRef.current = false
+        setShowIdleAlert(false)
         setIdleSeconds(0)
       }
+      // Cancel the recurring idle logger — user is back
+      if (idleLogIntervalRef.current) {
+        clearInterval(idleLogIntervalRef.current)
+        idleLogIntervalRef.current = null
+      }
     }
 
-    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click']
-    activityEvents.forEach(e => window.addEventListener(e, resetActivity, { passive: true }))
+    const EVENTS = ['mousemove', 'mousedown', 'keydown', 'keypress', 'touchstart', 'scroll', 'click'] as const
+    EVENTS.forEach(ev => document.addEventListener(ev, onActivity, { passive: true }))
 
-    let detector: any = null
-    let usingSystemDetector = false
-    const controller = new AbortController()
-
-    const setupIdleDetector = async () => {
-      if ('IdleDetector' in window) {
-        try {
-          const status = await navigator.permissions.query({ name: 'idle-detection' as any })
-          if (status.state === 'granted') {
-            detector = new (window as any).IdleDetector()
-            detector.addEventListener('change', () => {
-              if (detector.userState === 'active') {
-                resetActivity()
-              }
-            })
-            await detector.start({
-              threshold: 60000,
-              signal: controller.signal,
-            })
-            usingSystemDetector = true
-            console.log('[IDLE] System-wide IdleDetector started successfully.')
+    // ── Start a 2-minute recurring idle logger ─────────────────────────────
+    // Fires every 2 minutes; each firing logs 2 min of idle to backend.
+    const startPeriodicLogger = () => {
+      if (idleLogIntervalRef.current) return   // already running
+      idleLogIntervalRef.current = setInterval(() => {
+        const nowIdle = Math.floor((Date.now() - lastActivityRef.current) / 1000) >= IDLE_THRESHOLD_SECONDS
+        if (nowIdle) {
+          attendanceApi.logIdle().then(res => {
+            setTotalIdleMinutes(res.data.data.idleMinutes)
+          }).catch(() => {})
+        } else {
+          // User moved — stop the periodic logger
+          if (idleLogIntervalRef.current) {
+            clearInterval(idleLogIntervalRef.current)
+            idleLogIntervalRef.current = null
           }
-        } catch (err) {
-          console.warn('[IDLE] Failed to query or start system-wide IdleDetector:', err)
         }
-      }
+      }, 120_000) // every 2 minutes
     }
 
-    setupIdleDetector()
-
-    // Tick every second
+    // ── Tick every second: update idle counter, show alert, trigger logger ─
     idleTimerRef.current = setInterval(() => {
-      // If using system detector, check if the system-wide state is active
-      if (usingSystemDetector && detector && detector.userState === 'active') {
-        resetActivity()
-      }
-
-      // Fallback behavior: if system detector is not active, reset activity when window is hidden/blurred
-      if (!usingSystemDetector && (document.visibilityState === 'hidden' || !document.hasFocus())) {
-        resetActivity()
-        return
-      }
-
       const secondsSinceLast = Math.floor((Date.now() - lastActivityRef.current) / 1000)
       setIdleSeconds(secondsSinceLast)
 
       if (secondsSinceLast >= IDLE_THRESHOLD_SECONDS) {
-        setShowIdleAlert(true)
-        // Log idle to backend once per idle period
+        // Show the idle alert overlay
+        if (!showIdleAlertRef.current) {
+          showIdleAlertRef.current = true
+          setShowIdleAlert(true)
+        }
+
+        // Log the first 2-minute idle period to backend
         if (!idleAlertLoggedRef.current) {
           idleAlertLoggedRef.current = true
           attendanceApi.logIdle().then(res => {
             setTotalIdleMinutes(res.data.data.idleMinutes)
           }).catch(() => {})
+          // Then continue logging every further 2 minutes while still idle
+          startPeriodicLogger()
         }
       } else {
-        setShowIdleAlert(false)
+        // Under threshold — hide alert if it was showing
+        if (showIdleAlertRef.current) {
+          showIdleAlertRef.current = false
+          setShowIdleAlert(false)
+        }
       }
-    }, 1000)
+    }, 1_000)
 
     return () => {
-      if (idleTimerRef.current) clearInterval(idleTimerRef.current)
-      activityEvents.forEach(e => window.removeEventListener(e, resetActivity))
-      try {
-        controller.abort()
-      } catch (e) {}
+      stopAllTimers()
+      EVENTS.forEach(ev => document.removeEventListener(ev, onActivity))
     }
-  }, [todayStatus?.clockIn, todayStatus?.clockOut, showIdleAlert])
+  }, [todayStatus?.clockIn, todayStatus?.clockOut])
   // ─────────────────────────────────────────────────────────────────────────
+
 
   const startWebcam = async () => {
     try {
@@ -532,12 +552,38 @@ export default function Dashboard() {
       const res = await attendanceApi.clockOut()
       setTodayStatus(res.data.data)
       triggerHrNotification(`Employee ${fullName} clocked out.`)
+      alert('✅ Clock-out recorded successfully! Your shift has ended. You may now close this tab.')
+      try {
+        window.close()
+      } catch {
+        // Handled if browser restricts window.close
+      }
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to clock out.')
     } finally {
       setClocking(false)
     }
   }
+
+  // Prevent closing tab during an active shift
+  useEffect(() => {
+    const isClockedIn = !!todayStatus?.clockIn
+    const isClockedOut = !!todayStatus?.clockOut
+    const isShiftActive = isClockedIn && !isClockedOut
+
+    if (!isShiftActive) return
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = 'Your shift is currently active! Please clock out before closing this tab.'
+      return e.returnValue
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [todayStatus?.clockIn, todayStatus?.clockOut])
 
   // QR countdown timer and polling fallback
   useEffect(() => {

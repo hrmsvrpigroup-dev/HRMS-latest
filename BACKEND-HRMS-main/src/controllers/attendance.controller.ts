@@ -275,10 +275,14 @@ export const attendanceController = {
         return sendError(res, 'No active shift found to log idle time.', 400)
       }
 
-      // Each call = 2 minutes of idle time logged
+      // Accept optional minutesToAdd (default 2 minutes per call)
+      const minutesToAdd = typeof req.body?.minutesToAdd === 'number' && req.body.minutesToAdd > 0
+        ? Math.min(req.body.minutesToAdd, 60) // cap at 60 min per call for safety
+        : 2
+
       const updated = await prisma.attendance.update({
         where: { id: attendance.id },
-        data: { idleMinutes: { increment: 2 } },
+        data: { idleMinutes: { increment: minutesToAdd } },
       })
 
       // Sync updated idle time to Google Sheet
@@ -286,7 +290,7 @@ export const attendanceController = {
         console.error(`[GOOGLE_SHEETS_SYNC_ERROR] ${err.message}`)
       })
 
-      console.log(`[IDLE LOG] Employee ${employee.employeeCode} idleMinutes=${updated.idleMinutes}`)
+      console.log(`[IDLE LOG] Employee ${employee.employeeCode} +${minutesToAdd}min → idleMinutes=${updated.idleMinutes}`)
       return sendSuccess(res, { idleMinutes: updated.idleMinutes }, 'Idle time logged')
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to log idle time', 500)

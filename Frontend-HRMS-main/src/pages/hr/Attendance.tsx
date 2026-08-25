@@ -196,8 +196,13 @@ function FaceModal({ log, onClose }: { log: AttendanceItem; onClose: () => void 
 export default function Attendance() {
   const [logs, setLogs] = useState<AttendanceItem[]>([])
   const [filteredLogs, setFilteredLogs] = useState<AttendanceItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(true)   // only for initial page load
   const [error, setError] = useState('')
+
+  // Per-row loading: tracks which attendance IDs have an action in-flight
+  const [actionLoading, setActionLoading] = useState<Set<string>>(new Set())
+  const setRowLoading = (id: string, on: boolean) =>
+    setActionLoading(prev => { const s = new Set(prev); on ? s.add(id) : s.delete(id); return s })
 
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
@@ -223,6 +228,7 @@ export default function Attendance() {
     }
   }
 
+  // Initial page load (shows full-page spinner only once)
   const fetchLogs = async () => {
     try {
       setLoading(true)
@@ -236,35 +242,57 @@ export default function Attendance() {
     }
   }
 
+  // Silent background refresh — NEVER touches the page-level loading spinner
+  // so the table stays visible while re-fetching after an action.
+  const silentRefresh = async () => {
+    try {
+      const res = await attendanceApi.list()
+      setLogs(res.data.data)
+      setFilteredLogs(res.data.data)
+    } catch {
+      // silently ignore — table already has latest optimistic data
+    }
+  }
+
   const handleReset = async (id: string) => {
     if (!window.confirm('Are you sure you want to reset this attendance record? This will delete the entry and allow the employee to clock in again.')) return
+    setRowLoading(id, true)
+    setSyncNotice('')
     try {
-      setLoading(true)
       await attendanceApi.reset(id)
-      await fetchLogs()
-      setSyncNotice('✅ Attendance record reset successfully')
-    } catch (err: any) {
-      // Optimistic local state update to prevent UI data loss or table wipeout
+      // Optimistic: remove the row immediately
       setLogs(prev => prev.filter(item => item.id !== id))
-      setSyncNotice(`ℹ️ ${err.response?.data?.message || 'Shift reset updated in session'}`)
+      setSyncNotice('✅ Attendance record reset successfully')
+      // Then silently sync with server in background
+      silentRefresh()
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Failed to reset attendance record'
+      setSyncNotice(`❌ ${msg}`)
     } finally {
-      setLoading(false)
+      setRowLoading(id, false)
     }
   }
 
   const handleContinue = async (id: string) => {
     if (!window.confirm('Are you sure you want this employee to continue their shift? This will clear their clock-out record.')) return
+    setRowLoading(id, true)
+    setSyncNotice('')
     try {
-      setLoading(true)
       await attendanceApi.continueShift(id)
-      await fetchLogs()
+      // Optimistic: clear clockOut so the row shows as active immediately
+      setLogs(prev => prev.map(item =>
+        item.id === id
+          ? { ...item, clockOut: undefined, totalHours: undefined, status: 'PRESENT' as const }
+          : item
+      ))
       setSyncNotice('✅ Employee shift resumed successfully')
+      // Then silently sync with server in background
+      silentRefresh()
     } catch (err: any) {
-      // Optimistic local state update to resume shift without table wipeout
-      setLogs(prev => prev.map(item => item.id === id ? { ...item, clockOut: undefined, totalHours: undefined, status: 'PRESENT' } : item))
-      setSyncNotice(`ℹ️ ${err.response?.data?.message || 'Shift resumed in active session'}`)
+      const msg = err.response?.data?.message || 'Failed to resume shift'
+      setSyncNotice(`❌ ${msg}`)
     } finally {
-      setLoading(false)
+      setRowLoading(id, false)
     }
   }
 
@@ -533,11 +561,19 @@ export default function Attendance() {
                       {log.clockOut ? (
                         <button 
                           onClick={() => handleContinue(log.id)}
+                          disabled={actionLoading.has(log.id)}
                           className="btn-secondary" 
-                          style={{ padding: '4px 8px', fontSize: '0.75rem', color: '#10b981', borderColor: '#10b981', background: 'transparent' }}
+                          style={{
+                            padding: '4px 8px', fontSize: '0.75rem',
+                            color: actionLoading.has(log.id) ? '#94a3b8' : '#10b981',
+                            borderColor: actionLoading.has(log.id) ? '#94a3b8' : '#10b981',
+                            background: 'transparent',
+                            cursor: actionLoading.has(log.id) ? 'not-allowed' : 'pointer',
+                            opacity: actionLoading.has(log.id) ? 0.6 : 1,
+                          }}
                           title="Continue Shift"
                         >
-                          Continue
+                          {actionLoading.has(log.id) ? '...' : 'Continue'}
                         </button>
                       ) : (
                         <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>—</span>
@@ -546,11 +582,19 @@ export default function Attendance() {
                     <td className="no-print">
                       <button 
                         onClick={() => handleReset(log.id)}
+                        disabled={actionLoading.has(log.id)}
                         className="btn-secondary" 
-                        style={{ padding: '4px 8px', fontSize: '0.75rem', color: '#ef4444', borderColor: '#ef4444', background: 'transparent' }}
+                        style={{
+                          padding: '4px 8px', fontSize: '0.75rem',
+                          color: actionLoading.has(log.id) ? '#94a3b8' : '#ef4444',
+                          borderColor: actionLoading.has(log.id) ? '#94a3b8' : '#ef4444',
+                          background: 'transparent',
+                          cursor: actionLoading.has(log.id) ? 'not-allowed' : 'pointer',
+                          opacity: actionLoading.has(log.id) ? 0.6 : 1,
+                        }}
                         title="Reset Shift"
                       >
-                        Reset
+                        {actionLoading.has(log.id) ? '...' : 'Reset'}
                       </button>
                     </td>
                   </tr>

@@ -269,5 +269,21 @@ export function useEmployeeMonitor() {
     }
   }, [user])
 
+  // Prevent closing tab while screen monitoring is running
+  useEffect(() => {
+    if (!isMonitoring) return
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = 'Workforce monitoring is active. Please clock out before closing this tab.'
+      return e.returnValue
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [isMonitoring])
+
   return { isMonitoring, monitorError, startMonitoring, stopMonitoring }
 }
