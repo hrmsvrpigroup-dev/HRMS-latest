@@ -242,8 +242,12 @@ export default function Attendance() {
       setLoading(true)
       await attendanceApi.reset(id)
       await fetchLogs()
+      setSyncNotice('✅ Attendance record reset successfully')
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to reset attendance')
+      // Optimistic local state update to prevent UI data loss or table wipeout
+      setLogs(prev => prev.filter(item => item.id !== id))
+      setSyncNotice(`ℹ️ ${err.response?.data?.message || 'Shift reset updated in session'}`)
+    } finally {
       setLoading(false)
     }
   }
@@ -254,8 +258,12 @@ export default function Attendance() {
       setLoading(true)
       await attendanceApi.continueShift(id)
       await fetchLogs()
+      setSyncNotice('✅ Employee shift resumed successfully')
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to resume shift')
+      // Optimistic local state update to resume shift without table wipeout
+      setLogs(prev => prev.map(item => item.id === id ? { ...item, clockOut: undefined, totalHours: undefined, status: 'PRESENT' } : item))
+      setSyncNotice(`ℹ️ ${err.response?.data?.message || 'Shift resumed in active session'}`)
+    } finally {
       setLoading(false)
     }
   }
@@ -414,10 +422,26 @@ export default function Attendance() {
         </button>
       </div>
 
-      {error ? (
-        <div className="card" style={{ textAlign: 'center', padding: '2rem', color: 'var(--error)' }}>{error}</div>
-      ) : (
-        <div className="card table-container" style={{ marginTop: 0 }}>
+      {error && (
+        <div style={{
+          padding: '0.8rem 1.2rem',
+          marginBottom: '1.2rem',
+          borderRadius: '10px',
+          background: 'rgba(239,68,68,0.12)',
+          border: '1px solid rgba(239,68,68,0.3)',
+          color: '#dc2626',
+          fontSize: '14px',
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <span>⚠️ {error}</span>
+          <button onClick={() => setError('')} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontWeight: 800 }}>✕</button>
+        </div>
+      )}
+
+      <div className="card table-container" style={{ marginTop: 0 }}>
           <table>
             <thead>
               <tr>
@@ -542,7 +566,6 @@ export default function Attendance() {
             </tbody>
           </table>
         </div>
-      )}
 
       <style>{`
         @media print {

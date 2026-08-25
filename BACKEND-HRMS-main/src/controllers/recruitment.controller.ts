@@ -35,9 +35,9 @@ export const recruitmentController = {
           }
         })
 
-        // Fetch CSV from connected Google Sheet 16I1wxsTbRrJjLmDuC4-BBKRlcld0jND00TPu4mUnA54
+        // Fetch CSV from connected Google Sheet 1lQJhC2BRKi-ut7XerrcptvLwiRpJvxGbZGZaS9WzWpg
         try {
-          const csvUrl = 'https://docs.google.com/spreadsheets/d/16I1wxsTbRrJjLmDuC4-BBKRlcld0jND00TPu4mUnA54/export?format=csv&gid=1489515753'
+          const csvUrl = 'https://docs.google.com/spreadsheets/d/1lQJhC2BRKi-ut7XerrcptvLwiRpJvxGbZGZaS9WzWpg/export?format=csv&gid=1809928383'
           const csvRes = await fetch(csvUrl)
           if (csvRes.ok) {
             const csvText = await csvRes.text()
@@ -311,7 +311,7 @@ export const recruitmentController = {
   async scheduleInterview(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params
-      const { interviewDate, interviewTime, interviewType, interviewer, decision } = req.body
+      const { interviewDate, interviewTime, interviewType, interviewer, interviewLink, decision } = req.body
       const tenantId = req.tenantId ?? req.user?.tenantId
       if (!tenantId) {
         return sendError(res, 'Tenant context not found', 400)
@@ -329,8 +329,9 @@ export const recruitmentController = {
       if (interviewTime) updateData.interviewTime = interviewTime
       if (interviewType) updateData.interviewType = interviewType
       if (interviewer) updateData.interviewer = interviewer
+      if (interviewLink) updateData.interviewLink = interviewLink
       if (decision) {
-        updateData.status = decision === 'pass' ? 'OFFER' : 'REJECTED'
+        updateData.status = decision === 'pass' ? 'DOCUMENTS' : 'REJECTED'
       } else {
         updateData.status = 'INTERVIEW'
       }
@@ -579,7 +580,7 @@ export const recruitmentController = {
       }
 
       // 1. Check if Google Sheet ID is configured in process.env or fallback to provided user spreadsheet ID
-      const spreadsheetId = process.env.GOOGLE_SHEET_ID || '16I1wxsTbRrJjLmDuC4-BBKRlcld0jND00TPu4mUnA54'
+      const spreadsheetId = process.env.GOOGLE_SHEET_ID || '1lQJhC2BRKi-ut7XerrcptvLwiRpJvxGbZGZaS9WzWpg'
       const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
       let privateKey = process.env.GOOGLE_PRIVATE_KEY
 
@@ -587,7 +588,7 @@ export const recruitmentController = {
 
       // Always sync from public Google Sheet CSV if available
       try {
-        const csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=1489515753`
+        const csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=1809928383`
         const csvRes = await fetch(csvUrl)
         if (csvRes.ok) {
           const csvText = await csvRes.text()
@@ -827,8 +828,8 @@ export const recruitmentController = {
   // Live fetch candidate form responses directly from Google Sheet CSV
   async fetchLiveSheetData(req: AuthRequest, res: Response) {
     try {
-      const spreadsheetId = (process.env.GOOGLE_SHEET_ID || '16I1wxsTbRrJjLmDuC4-BBKRlcld0jND00TPu4mUnA54').trim()
-      const csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=1489515753`
+      const spreadsheetId = (process.env.GOOGLE_SHEET_ID || '1lQJhC2BRKi-ut7XerrcptvLwiRpJvxGbZGZaS9WzWpg').trim()
+      const csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=1809928383`
       
       const fetchCsv = (targetUrl: string): Promise<string> => {
         return new Promise((resolve, reject) => {
@@ -881,35 +882,82 @@ export const recruitmentController = {
         const rowVals = parseCsvLine(lines[i])
         if (rowVals.length === 0) continue
 
-        const timestamp = rowVals[0] || '24/08/2026 10:58:33'
-        const email = rowVals[1] || ''
-        const fullName = rowVals[2] || ''
-        const mobile = rowVals[3] || 'N/A'
-        const location = rowVals[4] || 'N/A'
-
-        let rawQualif = rowVals[5] || ''
-        let rawYear = rowVals[6] || ''
-        let qualification = '-'
-        let graduationYear = '-'
+        let timestamp = ''
+        let email = ''
+        let fullName = ''
+        let mobile = ''
+        let location = ''
+        let qualification = ''
+        let graduationYear = ''
         let resumeLink = ''
 
-        if (/^\d{4}$/.test(rawQualif)) {
-          graduationYear = rawQualif
-        } else if (rawQualif) {
-          qualification = rawQualif
-        }
+        // Pass 1: Scan headers dynamically
+        rowVals.forEach((cellVal: string, colIdx: number) => {
+          const h = (headers[colIdx] || '').toLowerCase()
+          const cell = cellVal.trim()
+          if (!cell) return
 
-        if (/^\d{4}$/.test(rawYear)) {
-          graduationYear = rawYear
-        } else if (rawYear && qualification === '-') {
-          qualification = rawYear
-        }
+          if (h.includes('timestamp') || h.includes('date') || h.includes('time')) {
+            if (!timestamp) timestamp = cell
+          } else if (h.includes('email') || h.includes('e-mail') || h.includes('mail')) {
+            if (!email) email = cell
+          } else if (h.includes('full name') || h.includes('name') || h.includes('applicant') || h.includes('candidate')) {
+            if (!fullName) fullName = cell
+          } else if (h.includes('mobile') || h.includes('phone') || h.includes('contact') || h.includes('number')) {
+            if (!mobile) mobile = cell
+          } else if (h.includes('location') || h.includes('city') || h.includes('place') || h.includes('address')) {
+            if (!location) location = cell
+          } else if (h.includes('qualification') || h.includes('degree') || h.includes('education') || h.includes('qual')) {
+            if (!qualification) qualification = cell
+          } else if (h.includes('year') || h.includes('passing') || h.includes('graduation')) {
+            if (!graduationYear) graduationYear = cell
+          }
 
-        rowVals.forEach(cell => {
-          if (cell && (cell.includes('drive.google.com') || cell.includes('http'))) {
-            resumeLink = cell
+          if (cell.includes('drive.google.com') || cell.includes('http')) {
+            if (!resumeLink) resumeLink = cell
           }
         })
+
+        // Pass 2: Type detection pass for unassigned cells
+        rowVals.forEach((cellVal: string) => {
+          const cell = cellVal.trim()
+          if (!cell) return
+
+          if (!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cell)) {
+            email = cell
+          }
+          if ((!mobile || mobile === 'N/A' || /[a-zA-Z]/.test(mobile)) && /^\+?\d{10,12}$/.test(cell.replace(/[\s-]/g, ''))) {
+            mobile = cell.replace(/[\s-]/g, '')
+          }
+          if ((!graduationYear || graduationYear === '-') && /^(19|20)\d{2}$/.test(cell)) {
+            graduationYear = cell
+          }
+        })
+
+        // Pass 3: Self-correction for swapped fields (e.g. Phone containing name, Location containing phone)
+        if (mobile && /[a-zA-Z]/.test(mobile)) {
+          if (!fullName || fullName === 'Applicant') {
+            fullName = mobile
+            mobile = 'N/A'
+          }
+        }
+
+        if (location && /^\+?\d{10,12}$/.test(location.replace(/[\s-]/g, ''))) {
+          if (!mobile || mobile === 'N/A' || /[a-zA-Z]/.test(mobile)) {
+            mobile = location.replace(/[\s-]/g, '')
+            location = 'WNP'
+          }
+        }
+
+        if (qualification && ['mbnr', 'hyd', 'wnp', 'npl', 'hyderabad', 'wanaparthy', 'mahabubnagar'].includes(qualification.toLowerCase())) {
+          if (!location || location === 'WNP' || location === 'N/A') {
+            location = qualification.toUpperCase()
+            qualification = 'Degree'
+          }
+        }
+
+        if (!timestamp) timestamp = rowVals[0] || '24/08/2026 10:58:33'
+        if (!email && rowVals[1] && rowVals[1].includes('@')) email = rowVals[1]
 
         if (email.includes('applicant_') || email.includes('@example.com')) continue
         if (!email && !fullName) continue

@@ -8,7 +8,7 @@ import {
   Briefcase, Users, UserCheck, Calendar,
   Mail, Phone, MoreHorizontal, XCircle, LayoutGrid, List, Target,
   Zap, Share2, Eye, Download, MapPin, Award,
-  ChevronRight, Brain, Globe, Inbox, StarHalf, ShieldAlert,
+  ChevronRight, ChevronLeft, Brain, Globe, Inbox, StarHalf, ShieldAlert,
   FolderOpen, UserPlus, CheckCircle, Clock, Sparkles, Send, Bell,
   ArrowUpRight, Activity, Layers, Settings, RefreshCw, ChevronDown,
   BookOpen, FileText, BarChart2, PieChart as PieChartIcon, Cpu, Copy, ExternalLink,
@@ -39,16 +39,20 @@ interface Candidate {
   experience: string;
   appliedDate: string;
   matchScore: number;
+  candidateCode?: string;
   avatarColor?: string;
   skills: string[];
   attachmentImages?: string[];
   resumeUrl?: string;
+  location?: string;
+  graduationYear?: string;
   
   // Interview Phase
   interviewDate?: string;
   interviewTime?: string;
   interviewType?: string;
   interviewer?: string;
+  interviewLink?: string;
   
   // Offer Phase
   offerSalary?: number;
@@ -211,13 +215,26 @@ function formatBytes(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
+export function getCandidateCode(c: any): string {
+  if (c && c.candidateCode) return c.candidateCode;
+  const str = (c?.email || c?.id || c?.phone || `${c?.firstName || ''}${c?.lastName || ''}` || 'cand').toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  const positiveHash = Math.abs(hash);
+  const fourDigit = 1000 + (positiveHash % 9000);
+  return `${fourDigit}`;
+}
+
 // ─── 9 Pipeline Stages Config ──────────────────────────────────────────
 
 const STAGES = [
   { step: '1', key: 'stage-5', title: 'Shortlisting', desc: 'Review best matches', icon: StarHalf, color: 'bg-sky-50 text-sky-600 border-sky-200', activeBg: 'bg-sky-600 text-white border-sky-600' },
   { step: '2', key: 'stage-6', title: 'Interviews', desc: 'Schedule & conduct', icon: Calendar, color: 'bg-amber-50 text-amber-600 border-amber-200', activeBg: 'bg-amber-600 text-white border-amber-600' },
-  { step: '3', key: 'stage-7', title: 'Offer', desc: 'Extend offer', icon: Award, color: 'bg-orange-50 text-orange-600 border-orange-200', activeBg: 'bg-orange-600 text-white border-orange-600' },
-  { step: '4', key: 'stage-8', title: 'Documents', desc: 'Collect & verify', icon: FolderOpen, color: 'bg-green-50 text-green-600 border-green-200', activeBg: 'bg-green-600 text-white border-green-600' },
+  { step: '3', key: 'stage-8', title: 'Documents', desc: 'Collect & verify', icon: FolderOpen, color: 'bg-green-50 text-green-600 border-green-200', activeBg: 'bg-green-600 text-white border-green-600' },
+  { step: '4', key: 'stage-7', title: 'Offer', desc: 'Extend offer', icon: Award, color: 'bg-orange-50 text-orange-600 border-orange-200', activeBg: 'bg-orange-600 text-white border-orange-600' },
   { step: '5', key: 'stage-9', title: 'Onboarding', desc: 'Welcome new hire', icon: UserPlus, color: 'bg-teal-50 text-teal-600 border-teal-200', activeBg: 'bg-teal-600 text-white border-teal-600' },
 ];
 
@@ -264,6 +281,8 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
   const [showEmbeddedForm, setShowEmbeddedForm] = useState(false);
   const [copiedFormLink, setCopiedFormLink] = useState(false);
   const [appSourceFilter, setAppSourceFilter] = useState<'all' | 'google-form' | 'manual'>('all');
+  const [allApplicantsFilter, setAllApplicantsFilter] = useState<'all' | 'accepted' | 'rejected' | 'pending'>('all');
+  const [inspectCandidate, setInspectCandidate] = useState<any | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [submittingApp, setSubmittingApp] = useState(false);
   const [modalApplicant, setModalApplicant] = useState({
@@ -275,10 +294,172 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
     skills: 'React, Node.js, TypeScript',
     jobId: ''
   });
-  const googleFormUrl = "https://docs.google.com/forms/d/e/1FAIpQLScvYTdlzahpM9AQqoY4MEyMPqcGU2-XYYfFYgtR76pMVYO4pw/viewform?usp=publish-editor";
-  const googleFormEmbedUrl = "https://docs.google.com/forms/d/e/1FAIpQLScvYTdlzahpM9AQqoY4MEyMPqcGU2-XYYfFYgtR76pMVYO4pw/viewform?embedded=true";
+  const googleFormUrl = "https://docs.google.com/forms/d/e/1FAIpQLSeZHuwlr39VAsqWkKr5pgGjWK95nFQ2-i9NA3EhUOjbaOakUw/viewform?usp=header";
+  const googleFormEmbedUrl = "https://docs.google.com/forms/d/e/1FAIpQLSeZHuwlr39VAsqWkKr5pgGjWK95nFQ2-i9NA3EhUOjbaOakUw/viewform?embedded=true";
+  const googleSheetUrl = "https://docs.google.com/spreadsheets/d/1lQJhC2BRKi-ut7XerrcptvLwiRpJvxGbZGZaS9WzWpg/edit?resourcekey=&gid=1809928383#gid=1809928383";
   const [previewMediaAttachment, setPreviewMediaAttachment] = useState<FormAttachment | null>(null);
-  const [formApplicantStatuses, setFormApplicantStatuses] = useState<{ [key: string]: 'accepted' | 'declined' | 'pending' }>({});
+  const [formApplicantStatuses, setFormApplicantStatuses] = useState<{ [key: string]: 'accepted' | 'declined' | 'pending' | 'scheduled' | 'documents' }>(() => {
+    try {
+      const saved = localStorage.getItem('hrms_form_applicant_statuses');
+      return saved ? JSON.parse(saved) : {};
+    } catch (_) {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('hrms_form_applicant_statuses', JSON.stringify(formApplicantStatuses));
+    } catch (_) {}
+  }, [formApplicantStatuses]);
+
+  const getStoredShortlistedCandidates = (): Candidate[] => {
+    try {
+      const saved = localStorage.getItem('hrms_shortlisted_candidates');
+      return saved ? JSON.parse(saved) : [];
+    } catch (_) {
+      return [];
+    }
+  };
+
+  const saveStoredShortlistedCandidates = (list: Candidate[]) => {
+    try {
+      localStorage.setItem('hrms_shortlisted_candidates', JSON.stringify(list));
+    } catch (_) {}
+  };
+
+  const getStoredScheduledInterviews = (): Candidate[] => {
+    try {
+      const saved = localStorage.getItem('hrms_scheduled_interviews');
+      return saved ? JSON.parse(saved) : [];
+    } catch (_) {
+      return [];
+    }
+  };
+
+  const saveStoredScheduledInterviews = (list: Candidate[]) => {
+    try {
+      localStorage.setItem('hrms_scheduled_interviews', JSON.stringify(list));
+    } catch (_) {}
+  };
+
+  const handleAcceptFormApplicant = async (c: any) => {
+    const applicantEmail = c.email || c.id;
+    setFormApplicantStatuses(prev => {
+      const updated = { ...prev, [applicantEmail]: 'accepted' as const };
+      try {
+        localStorage.setItem('hrms_form_applicant_statuses', JSON.stringify(updated));
+      } catch (_) {}
+      return updated;
+    });
+
+    const nameParts = (c.firstName || c.name || 'Applicant').split(' ');
+    const fName = c.firstName || nameParts[0] || 'Applicant';
+    const lName = c.lastName || nameParts.slice(1).join(' ') || '';
+
+    const newCand: Candidate = {
+      id: c.id || `cand-form-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      firstName: fName,
+      lastName: lName,
+      email: c.email || `applicant_${Date.now()}@example.com`,
+      phone: c.phone || c.mobile || 'N/A',
+      stage: 'Shortlisting',
+      source: c.source || 'Google Form',
+      jobTitle: c.jobTitle || 'Google Form Applicant',
+      experience: c.experience || c.qualification || 'Degree',
+      location: c.location || 'WNP',
+      graduationYear: c.graduationYear || '-',
+      appliedDate: c.appliedAt || format(new Date(), 'yyyy-MM-dd'),
+      matchScore: c.matchScore || 85,
+      skills: c.skills || ['Google Form', c.qualification || 'Degree'],
+      avatarColor: 'bg-emerald-100 text-emerald-600 border-emerald-200',
+      resumeUrl: c.resumeUrl || c.resumeLink,
+      attachmentImages: c.attachmentImages || (c.resumeUrl ? [c.resumeUrl] : [])
+    };
+
+    setCandidates(prevCandidates => {
+      const exists = prevCandidates.some(cand => 
+        (c.email && cand.email === c.email) || (c.id && cand.id === c.id)
+      );
+
+      let updatedList: Candidate[];
+      if (exists) {
+        updatedList = prevCandidates.map(cand => {
+          if ((c.email && cand.email === c.email) || (c.id && cand.id === c.id)) {
+            return { ...cand, stage: 'Shortlisting' };
+          }
+          return cand;
+        });
+      } else {
+        updatedList = [newCand, ...prevCandidates];
+      }
+
+      saveStoredShortlistedCandidates(updatedList.filter(cand => cand.stage === 'Shortlisting'));
+      return updatedList;
+    });
+
+    if (c.id && !c.id.startsWith('cand-shiva-') && !c.id.startsWith('cand-live-')) {
+      try {
+        await api.patch(`/recruitment/applications/${c.id}/status`, { status: 'SHORTLISTED' });
+      } catch (err) {
+        console.warn('Backend status update error:', err);
+      }
+    } else {
+      try {
+        const res = await api.post('/recruitment/applications', {
+          name: `${c.firstName || c.name || 'Applicant'} ${c.lastName || ''}`.trim(),
+          email: c.email || `applicant_${Date.now()}@example.com`,
+          phone: c.phone || c.mobile || 'N/A',
+          experience: c.experience || c.qualification || 'Degree',
+          source: c.source || 'Google Form',
+          skills: c.skills || ['Google Form'],
+          jobId: selectedJobId || (jobs[0] ? jobs[0].id : '')
+        });
+        if (res.data?.data?.id) {
+          await api.patch(`/recruitment/applications/${res.data.data.id}/status`, { status: 'SHORTLISTED' });
+        }
+      } catch (err) {
+        console.warn('Backend application sync notice:', err);
+      }
+    }
+
+    const nameToShow = `${c.firstName || c.name || 'Applicant'} ${c.lastName || ''}`.trim();
+    alert(`✅ Application accepted! ${nameToShow} has been moved to the Shortlist tab.`);
+  };
+
+  const handleDeclineFormApplicant = async (c: any) => {
+    const applicantEmail = c.email || c.id;
+    setFormApplicantStatuses(prev => {
+      const updated = { ...prev, [applicantEmail]: 'declined' as const };
+      try {
+        localStorage.setItem('hrms_form_applicant_statuses', JSON.stringify(updated));
+      } catch (_) {}
+      return updated;
+    });
+
+    setCandidates(prevCandidates => {
+      const updatedList = prevCandidates.map(cand => {
+        if ((c.email && cand.email === c.email) || (c.id && cand.id === c.id)) {
+          return { ...cand, stage: 'Rejected' };
+        }
+        return cand;
+      });
+
+      saveStoredShortlistedCandidates(updatedList.filter(cand => cand.stage === 'Shortlisting'));
+      return updatedList;
+    });
+
+    if (c.id && !c.id.startsWith('cand-shiva-') && !c.id.startsWith('cand-live-')) {
+      try {
+        await api.patch(`/recruitment/applications/${c.id}/status`, { status: 'REJECTED' });
+      } catch (err) {
+        console.warn('Backend status update error:', err);
+      }
+    }
+
+    const nameToShow = `${c.firstName || c.name || 'Applicant'} ${c.lastName || ''}`.trim();
+    alert(`❌ Application declined for ${nameToShow}.`);
+  };
 
   const handleSyncResponses = async () => {
     try {
@@ -355,13 +536,40 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
     jobId: ''
   });
 
-  // Stage 6 Interview form state
+  // Stage 6 Interview form & calendar state
+  const [currentCalMonth, setCurrentCalMonth] = useState<Date>(new Date(2026, 7, 1)); // August 2026
+  const [showScheduleModal, setShowScheduleModal] = useState<boolean>(false);
+  const [showFormModal, setShowFormModal] = useState<boolean>(false);
   const [interviewForm, setInterviewForm] = useState({
-    date: '',
-    time: '',
-    type: 'Technical',
-    interviewer: ''
+    date: '2026-08-25',
+    time: '11:30 AM',
+    type: 'HR Screening',
+    interviewer: 'Sneha Nair',
+    link: ''
   });
+
+  const openAddSlotModal = (dateStr: string) => {
+    const existingOnDate = candidates.filter(c => c.interviewDate === dateStr);
+    const bookedTimes = existingOnDate.map(c => (c.interviewTime || '').trim().toLowerCase());
+
+    const standardSlots = [
+      '09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
+      '12:00 PM', '12:30 PM', '01:30 PM', '02:00 PM', '02:30 PM', '03:00 PM',
+      '03:30 PM', '04:00 PM', '04:30 PM', '05:00 PM', '05:30 PM', '06:00 PM'
+    ];
+    let nextAvailable = standardSlots.find(s => !bookedTimes.includes(s.toLowerCase())) || '06:30 PM';
+
+    setInterviewForm({
+      date: dateStr,
+      time: nextAvailable,
+      type: 'Technical Round',
+      interviewer: 'Sneha Nair',
+      link: ''
+    });
+
+    setSelectedCandidate(null);
+    setShowScheduleModal(true);
+  };
 
   // Stage 7 Offer form state
   const [offerForm, setOfferForm] = useState({
@@ -413,6 +621,9 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
         responseData.forEach((job: any) => {
           if (job.applications) {
             job.applications.forEach((app: any) => {
+              if (app.email && (app.email.includes('applicant_') || app.email.includes('@example.com') || app.email.includes('employee_'))) {
+                return;
+              }
               const nameParts = (app.name || 'Applicant').split(' ');
               const firstName = nameParts[0] || 'Applicant';
               const lastName = nameParts.slice(1).join(' ') || '';
@@ -444,10 +655,11 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                 avatarColor: AVATAR_COLORS[colorIdx++ % AVATAR_COLORS.length],
                 attachmentImages: app.attachmentImages || [],
                 resumeUrl: app.resumeUrl || undefined,
-                interviewDate: app.interviewDate ? format(new Date(app.interviewDate), 'yyyy-MM-dd') : undefined,
+                interviewDate: app.interviewDate ? (typeof app.interviewDate === 'string' ? app.interviewDate.split('T')[0] : format(new Date(app.interviewDate), 'yyyy-MM-dd')) : undefined,
                 interviewTime: app.interviewTime,
                 interviewType: app.interviewType,
                 interviewer: app.interviewer,
+                interviewLink: app.interviewLink || undefined,
                 offerSalary: app.offerSalary,
                 offerJoiningDate: app.offerJoiningDate ? format(new Date(app.offerJoiningDate), 'yyyy-MM-dd') : undefined,
                 offerStatus: app.offerStatus,
@@ -459,6 +671,16 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
           }
         });
 
+        // Read stored statuses, shortlisted candidates, and scheduled interviews from localStorage
+        let storedStatuses: { [key: string]: string } = {};
+        try {
+          const savedStr = localStorage.getItem('hrms_form_applicant_statuses');
+          if (savedStr) storedStatuses = JSON.parse(savedStr);
+        } catch (_) {}
+
+        const storedShortlisted = getStoredShortlistedCandidates();
+        const storedScheduled = getStoredScheduledInterviews();
+
         // Live fetch real-time responses from Google Form / Sheet CSV
         try {
           const liveSheetRes = await api.get('/recruitment/live-google-responses');
@@ -466,17 +688,45 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
             const sheetRows = liveSheetRes.data.data.responses;
             sheetRows.forEach((r: any) => {
               if (r.email && !allCandidates.some(c => c.email === r.email)) {
+                const isAccepted = storedStatuses[r.email] === 'accepted';
+                const isDeclined = storedStatuses[r.email] === 'declined';
+                
+                let nameStr = r.fullName || 'Applicant';
+                let phoneStr = r.mobile || 'N/A';
+                let locationStr = r.location || 'WNP';
+                let expStr = r.qualification || 'Degree';
+
+                // Self-correct if fields were swapped
+                if (phoneStr && /[a-zA-Z]/.test(phoneStr)) {
+                  if (!nameStr || nameStr === 'Applicant') {
+                    nameStr = phoneStr;
+                    phoneStr = 'N/A';
+                  }
+                }
+                if (locationStr && /^\+?\d{10,12}$/.test(locationStr.replace(/[\s-]/g, ''))) {
+                  if (!phoneStr || phoneStr === 'N/A' || /[a-zA-Z]/.test(phoneStr)) {
+                    phoneStr = locationStr;
+                    locationStr = 'WNP';
+                  }
+                }
+                if (expStr && ['mbnr', 'hyd', 'wnp', 'npl', 'hyderabad', 'wanaparthy', 'mahabubnagar'].includes(expStr.toLowerCase())) {
+                  if (!locationStr || locationStr === 'WNP' || locationStr === 'N/A') {
+                    locationStr = expStr.toUpperCase();
+                    expStr = 'Degree';
+                  }
+                }
+
                 allCandidates.push({
                   id: r.id || `cand-live-${Date.now()}`,
-                  firstName: r.fullName?.split(' ')[0] || r.fullName || 'Applicant',
-                  lastName: r.fullName?.split(' ').slice(1).join(' ') || '',
+                  firstName: nameStr.split(' ')[0] || nameStr,
+                  lastName: nameStr.split(' ').slice(1).join(' ') || '',
                   email: r.email,
-                  phone: r.mobile || 'N/A',
-                  stage: 'Applications',
+                  phone: phoneStr,
+                  stage: isAccepted ? 'Shortlisting' : isDeclined ? 'Rejected' : 'Applications',
                   source: 'Google Form',
                   jobTitle: 'Google Form Recruitment',
-                  experience: r.qualification || 'Degree',
-                  location: r.location || 'WNP',
+                  experience: expStr,
+                  location: locationStr,
                   appliedDate: r.timestamp || '24/08/2026 10:58:33',
                   resumeUrl: r.resumeLink,
                   attachmentImages: [r.resumeLink],
@@ -488,6 +738,54 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
             });
           }
         } catch (_) {}
+
+        // Apply local storage statuses to all candidates
+        allCandidates.forEach(cand => {
+          const status = storedStatuses[cand.email] || (cand.id ? storedStatuses[cand.id] : undefined);
+          if (status === 'documents') {
+            cand.stage = 'Documents';
+          } else if (status === 'scheduled') {
+            if (cand.stage !== 'Documents' && cand.stage !== 'Offer' && cand.stage !== 'Onboarding') {
+              cand.stage = 'Interviews';
+            }
+          } else if (status === 'accepted') {
+            if (cand.stage !== 'Interviews' && cand.stage !== 'Documents' && cand.stage !== 'Offer' && cand.stage !== 'Onboarding') {
+              cand.stage = 'Shortlisting';
+            }
+          } else if (status === 'declined') {
+            cand.stage = 'Rejected';
+          }
+        });
+
+        // Merge stored scheduled interviews into allCandidates
+        storedScheduled.forEach(si => {
+          const idx = allCandidates.findIndex(c => (c.email && c.email === si.email) || (c.id && c.id === si.id));
+          if (idx >= 0) {
+            allCandidates[idx] = {
+              ...allCandidates[idx],
+              stage: si.stage || allCandidates[idx].stage,
+              interviewDate: si.interviewDate || allCandidates[idx].interviewDate,
+              interviewTime: si.interviewTime || allCandidates[idx].interviewTime,
+              interviewType: si.interviewType || allCandidates[idx].interviewType,
+              interviewer: si.interviewer || allCandidates[idx].interviewer,
+              interviewLink: si.interviewLink || allCandidates[idx].interviewLink,
+            };
+          } else {
+            allCandidates.unshift({ ...si, stage: si.stage || 'Interviews' });
+          }
+        });
+
+        // Merge stored shortlisted candidates into allCandidates
+        storedShortlisted.forEach(sc => {
+          const idx = allCandidates.findIndex(c => (c.email && c.email === sc.email) || (c.id && c.id === sc.id));
+          if (idx >= 0) {
+            if (allCandidates[idx].stage !== 'Interviews' && allCandidates[idx].stage !== 'Offer' && allCandidates[idx].stage !== 'Documents' && allCandidates[idx].stage !== 'Onboarding') {
+              allCandidates[idx].stage = 'Shortlisting';
+            }
+          } else {
+            allCandidates.unshift({ ...sc, stage: 'Shortlisting' });
+          }
+        });
 
         setCandidates(allCandidates);
       }
@@ -519,16 +817,39 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
     return () => clearInterval(intervalId);
   }, []);
 
-  // Update candidate status backend
+  // Update candidate status backend & local storage
   const updateCandidateStage = async (candidateId: string, status: string) => {
-    try {
-      await api.patch(`/recruitment/applications/${candidateId}/status`, { status });
-      await loadRecruitmentData();
-      if (selectedCandidate && selectedCandidate.id === candidateId) {
-        setSelectedCandidate(prev => prev ? { ...prev, stage: status } : null);
+    const targetStage = status === 'REJECTED' ? 'Rejected' : status === 'SHORTLISTED' ? 'Shortlisting' : status;
+    
+    setCandidates(prev => {
+      const updatedList = prev.map(c => c.id === candidateId ? { ...c, stage: targetStage } : c);
+      saveStoredShortlistedCandidates(updatedList.filter(cand => cand.stage === 'Shortlisting'));
+      return updatedList;
+    });
+
+    if (selectedCandidate && selectedCandidate.id === candidateId) {
+      setSelectedCandidate(prev => prev ? { ...prev, stage: targetStage } : null);
+    }
+
+    if (targetStage === 'Rejected') {
+      const candObj = candidates.find(c => c.id === candidateId);
+      if (candObj?.email) {
+        setFormApplicantStatuses(prev => {
+          const updated = { ...prev, [candObj.email]: 'declined' as const };
+          try {
+            localStorage.setItem('hrms_form_applicant_statuses', JSON.stringify(updated));
+          } catch (_) {}
+          return updated;
+        });
       }
-    } catch (err) {
-      alert('Failed to update candidate status.');
+    }
+
+    if (candidateId && !candidateId.startsWith('cand-')) {
+      try {
+        await api.patch(`/recruitment/applications/${candidateId}/status`, { status });
+      } catch (err) {
+        console.warn('Backend status update notice:', err);
+      }
     }
   };
 
@@ -748,31 +1069,159 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
 
   // Schedule Interview
   const handleScheduleInterview = async (candidateId: string) => {
-    if (!interviewForm.date || !interviewForm.time || !interviewForm.interviewer) {
-      alert('Please fill out Date, Time, and Interviewer.');
+    if (!candidateId) {
+      alert('Please select a candidate to schedule an interview.');
       return;
     }
-    try {
-      await api.patch(`/recruitment/applications/${candidateId}/interview`, {
-        interviewDate: interviewForm.date,
-        interviewTime: interviewForm.time,
-        interviewType: interviewForm.type,
-        interviewer: interviewForm.interviewer
-      });
-      alert('Interview scheduled successfully!');
-      setInterviewForm({ date: '', time: '', type: 'Technical', interviewer: '' });
-      await loadRecruitmentData();
-    } catch (err) {
-      alert('Failed to schedule interview.');
+    if (!interviewForm.date || !interviewForm.time || !interviewForm.interviewer || !interviewForm.link || !interviewForm.link.trim()) {
+      alert('Please fill out Date, Time Slot, Interviewer, and Video Meeting Link (Required).');
+      return;
     }
+
+    const normTime = interviewForm.time.trim().toLowerCase();
+    const normDate = interviewForm.date.trim();
+
+    // Block duplicate time slot on the same date
+    const conflictingCand = candidates.find(c => 
+      c.id !== candidateId && 
+      c.email !== candidateId &&
+      c.interviewDate === normDate && 
+      (c.interviewTime || '').trim().toLowerCase() === normTime
+    );
+
+    if (conflictingCand) {
+      alert(`⚠️ Time slot "${interviewForm.time}" is already booked on ${normDate} for candidate ${conflictingCand.firstName} ${conflictingCand.lastName}. Please select a different time slot.`);
+      return;
+    }
+
+    const meetingLink = interviewForm.link.trim();
+    const targetCand = candidates.find(c => c.id === candidateId || c.email === candidateId);
+
+    const updatedScheduledCand: Candidate = {
+      ...(targetCand || {
+        id: candidateId,
+        firstName: 'Applicant',
+        lastName: '',
+        email: candidateId.includes('@') ? candidateId : `cand_${candidateId}@example.com`,
+        phone: 'N/A',
+        source: 'Google Form',
+        jobTitle: 'Google Form Recruitment',
+        experience: 'Degree',
+        appliedDate: format(new Date(), 'yyyy-MM-dd'),
+        matchScore: 85,
+        skills: ['Scheduled Interview']
+      }),
+      stage: 'Interviews',
+      interviewDate: interviewForm.date,
+      interviewTime: interviewForm.time,
+      interviewType: interviewForm.type,
+      interviewer: interviewForm.interviewer,
+      interviewLink: meetingLink
+    };
+
+    // Update local candidates state immediately
+    setCandidates(prev => {
+      let found = false;
+      const updatedList = prev.map(c => {
+        if (c.id === candidateId || c.email === candidateId || (targetCand && c.id === targetCand.id)) {
+          found = true;
+          return updatedScheduledCand;
+        }
+        return c;
+      });
+      return found ? updatedList : [updatedScheduledCand, ...prev];
+    });
+
+    // Save to localStorage scheduled interviews
+    const currentScheduled = getStoredScheduledInterviews();
+    const existingIdx = currentScheduled.findIndex(c => c.id === candidateId || (c.email && targetCand?.email && c.email === targetCand.email));
+    let nextScheduled: Candidate[];
+    if (existingIdx >= 0) {
+      nextScheduled = currentScheduled.map((c, idx) => idx === existingIdx ? updatedScheduledCand : c);
+    } else {
+      nextScheduled = [updatedScheduledCand, ...currentScheduled];
+    }
+    saveStoredScheduledInterviews(nextScheduled);
+
+    // Update formApplicantStatuses so localStorage reflects scheduled status
+    const candEmail = targetCand?.email || candidateId;
+    setFormApplicantStatuses(prev => {
+      const updated = { ...prev, [candEmail]: 'scheduled' as const };
+      try {
+        localStorage.setItem('hrms_form_applicant_statuses', JSON.stringify(updated));
+      } catch (_) {}
+      return updated;
+    });
+
+    if (candidateId && !candidateId.startsWith('cand-')) {
+      try {
+        await api.patch(`/recruitment/applications/${candidateId}/interview`, {
+          interviewDate: interviewForm.date,
+          interviewTime: interviewForm.time,
+          interviewType: interviewForm.type,
+          interviewer: interviewForm.interviewer,
+          interviewLink: meetingLink
+        });
+      } catch (err) {
+        console.warn('Backend update warning:', err);
+      }
+    }
+
+    alert(`📅 Interview scheduled successfully for ${targetCand ? targetCand.firstName + ' ' + targetCand.lastName : 'Candidate'} on ${interviewForm.date} at ${interviewForm.time}!`);
+    setShowScheduleModal(false);
   };
 
   // Pass or Fail Interview
   const handleInterviewDecision = async (candidateId: string, decision: 'pass' | 'fail') => {
     try {
-      await api.patch(`/recruitment/applications/${candidateId}/interview`, { decision });
-      alert(decision === 'pass' ? 'Candidate passed! Offer extended.' : 'Candidate rejected.');
-      await loadRecruitmentData();
+      const targetCand = candidates.find(c => c.id === candidateId || c.email === candidateId);
+      const candEmail = targetCand?.email || candidateId;
+      const targetStage = decision === 'pass' ? 'Documents' : 'Rejected';
+
+      // Update React state candidates
+      setCandidates(prev => {
+        return prev.map(c => {
+          if (c.id === candidateId || c.email === candidateId || (targetCand && c.id === targetCand.id)) {
+            return { ...c, stage: targetStage };
+          }
+          return c;
+        });
+      });
+
+      // Persist in localStorage scheduled interviews
+      const currentScheduled = getStoredScheduledInterviews();
+      const nextScheduled = currentScheduled.map(c => {
+        if (c.id === candidateId || (c.email && targetCand?.email && c.email === targetCand.email)) {
+          return { ...c, stage: targetStage };
+        }
+        return c;
+      });
+      saveStoredScheduledInterviews(nextScheduled);
+
+      // Persist in formApplicantStatuses
+      setFormApplicantStatuses(prev => {
+        const updated = { ...prev, [candEmail]: decision === 'pass' ? ('documents' as const) : ('declined' as const) };
+        try {
+          localStorage.setItem('hrms_form_applicant_statuses', JSON.stringify(updated));
+        } catch (_) {}
+        return updated;
+      });
+
+      // Update Backend DB if real database application
+      if (candidateId && !candidateId.startsWith('cand-')) {
+        try {
+          await api.patch(`/recruitment/applications/${candidateId}/interview`, { decision });
+        } catch (err) {
+          console.warn('Backend interview decision notice:', err);
+        }
+      }
+
+      if (decision === 'pass') {
+        alert(`🎉 Interview passed for ${targetCand ? targetCand.firstName + ' ' + targetCand.lastName : 'Candidate'}! Profile moved to Stage 8: Document Verification tab.`);
+        setActiveTab('stage-8');
+      } else {
+        alert(`❌ Candidate ${targetCand ? targetCand.firstName + ' ' + targetCand.lastName : ''} marked as rejected.`);
+      }
     } catch (err) {
       alert('Failed to save interview decision.');
     }
@@ -912,8 +1361,8 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
     { value: 'stage-2', label: '1. Job Posting', icon: Globe },
     { value: 'stage-5', label: '2. Shortlisting', icon: StarHalf },
     { value: 'stage-6', label: '3. Interviews', icon: Calendar },
-    { value: 'stage-7', label: '4. Offer', icon: Award },
-    { value: 'stage-8', label: '5. Documents', icon: FolderOpen },
+    { value: 'stage-8', label: '4. Documents', icon: FolderOpen },
+    { value: 'stage-7', label: '5. Offer', icon: Award },
     { value: 'stage-9', label: '6. Onboarding', icon: UserPlus },
     { value: 'candidates', label: 'All Applicants', icon: Users },
   ];
@@ -1120,7 +1569,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <button
                       onClick={() => {
-                        navigator.clipboard.writeText("https://docs.google.com/forms/d/e/1FAIpQLScvYTdlzahpM9AQqoY4MEyMPqcGU2-XYYfFYgtR76pMVYO4pw/viewform?usp=publish-editor");
+                        navigator.clipboard.writeText(googleFormUrl);
                         alert('✅ Google Form link copied to clipboard!');
                       }}
                       className="rec-btn-outline"
@@ -1130,7 +1579,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                     </button>
 
                     <a
-                      href="https://docs.google.com/forms/d/e/1FAIpQLScvYTdlzahpM9AQqoY4MEyMPqcGU2-XYYfFYgtR76pMVYO4pw/viewform?usp=publish-editor"
+                      href={googleFormUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="rec-btn-primary"
@@ -1143,7 +1592,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
 
                 <div style={{ width: '100%', borderRadius: '0.75rem', overflow: 'hidden', border: '1px solid #e2e8f0', background: '#faf5ff' }}>
                   <iframe
-                    src="https://docs.google.com/forms/d/e/1FAIpQLScvYTdlzahpM9AQqoY4MEyMPqcGU2-XYYfFYgtR76pMVYO4pw/viewform?embedded=true"
+                    src={googleFormEmbedUrl}
                     width="100%"
                     height="750"
                     frameBorder="0"
@@ -1161,31 +1610,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
             {/* ════════════════ STAGE 2: JOB POSTING ════════════════ */}
             {activeTab === 'stage-2' && (
               <div className="rec-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ padding: '0.5rem', background: 'linear-gradient(135deg, #0284c7, #2563eb)', borderRadius: '0.75rem', display: 'flex' }}>
-                      <Globe className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                      <h2 className="rec-section-title" style={{ fontSize: '1.1rem' }}>Stage 2: Active Job Postings & Channels</h2>
-                      <p className="rec-section-sub">Manage published job listings and multi-channel recruitment distribution</p>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <a 
-                      href="https://docs.google.com/forms/d/e/1FAIpQLScvYTdlzahpM9AQqoY4MEyMPqcGU2-XYYfFYgtR76pMVYO4pw/viewform?usp=publish-editor"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rec-btn-outline" 
-                      style={{ fontSize: '0.75rem', height: '34px', gap: '5px', textDecoration: 'none' }}
-                    >
-                      <ExternalLink className="h-3.5 w-3.5 text-purple-600" /> Open Google Form
-                    </a>
-                    <button onClick={() => setActiveTab('stage-1')} className="rec-btn-primary" style={{ fontSize: '0.75rem', height: '34px' }}>
-                      <Plus className="h-3.5 w-3.5" /> Post New Job
-                    </button>
-                  </div>
-                </div>
+
 
                 {/* ── Official Google Form Recruitment Link Card ── */}
                 <div style={{ background: 'linear-gradient(135deg, #f3e8ff 0%, #e0e7ff 100%)', border: '1px solid #c084fc', borderRadius: '0.85rem', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
@@ -1197,7 +1622,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                       <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#4c1d95', margin: 0 }}>Official Recruitment Google Form Link</h3>
                       <p style={{ fontSize: '0.7rem', color: '#6b21a8', margin: '2px 0 0 0', fontWeight: 600 }}>Share this link with applicants to collect live resumes & submissions into database</p>
                       <span style={{ fontSize: '0.65rem', color: '#581c87', fontFamily: 'monospace', fontWeight: 700, wordBreak: 'break-all' }}>
-                        https://docs.google.com/forms/d/e/1FAIpQLScvYTdlzahpM9AQqoY4MEyMPqcGU2-XYYfFYgtR76pMVYO4pw/viewform?usp=publish-editor
+                        {googleFormUrl}
                       </span>
                     </div>
                   </div>
@@ -1205,7 +1630,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <button 
                       onClick={() => {
-                        navigator.clipboard.writeText("https://docs.google.com/forms/d/e/1FAIpQLScvYTdlzahpM9AQqoY4MEyMPqcGU2-XYYfFYgtR76pMVYO4pw/viewform?usp=publish-editor");
+                        navigator.clipboard.writeText(googleFormUrl);
                         alert('✅ Google Form link copied to clipboard!');
                       }}
                       className="rec-btn-outline" 
@@ -1214,7 +1639,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                       <Copy className="h-3.5 w-3.5" /> Copy Form Link
                     </button>
                     <a 
-                      href="https://docs.google.com/forms/d/e/1FAIpQLScvYTdlzahpM9AQqoY4MEyMPqcGU2-XYYfFYgtR76pMVYO4pw/viewform?usp=publish-editor" 
+                      href={googleFormUrl} 
                       target="_blank" 
                       rel="noopener noreferrer" 
                       className="rec-btn-primary" 
@@ -1240,7 +1665,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                       </div>
                       <p style={{ fontSize: '0.7rem', color: '#047857', margin: '2px 0 0 0', fontWeight: 600 }}>Live connected spreadsheet containing incoming applicant responses and data</p>
                       <span style={{ fontSize: '0.65rem', color: '#065f46', fontFamily: 'monospace', fontWeight: 700, wordBreak: 'break-all' }}>
-                        https://docs.google.com/spreadsheets/d/16I1wxsTbRrJjLmDuC4-BBKRlcld0jND00TPu4mUnA54/edit?resourcekey=&gid=1489515753#gid=1489515753
+                        {googleSheetUrl}
                       </span>
                     </div>
                   </div>
@@ -1248,7 +1673,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <button 
                       onClick={() => {
-                        navigator.clipboard.writeText("https://docs.google.com/spreadsheets/d/16I1wxsTbRrJjLmDuC4-BBKRlcld0jND00TPu4mUnA54/edit?resourcekey=&gid=1489515753#gid=1489515753");
+                        navigator.clipboard.writeText(googleSheetUrl);
                         alert('✅ Google Sheet link copied to clipboard!');
                       }}
                       className="rec-btn-outline" 
@@ -1257,7 +1682,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                       <Copy className="h-3.5 w-3.5" /> Copy Sheet Link
                     </button>
                     <a 
-                      href="https://docs.google.com/spreadsheets/d/16I1wxsTbRrJjLmDuC4-BBKRlcld0jND00TPu4mUnA54/edit?resourcekey=&gid=1489515753#gid=1489515753" 
+                      href={googleSheetUrl} 
                       target="_blank" 
                       rel="noopener noreferrer" 
                       className="rec-btn-primary" 
@@ -1378,9 +1803,19 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                               </td>
                               <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', textAlign: 'center' }}>
                                 {formApplicantStatuses[c.email] === 'accepted' ? (
-                                  <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '4px 10px', borderRadius: '99px', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                    <CheckCircle className="h-3.5 w-3.5 text-emerald-600" /> Accepted
-                                  </span>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '4px 10px', borderRadius: '99px', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                      <CheckCircle className="h-3.5 w-3.5 text-emerald-600" /> Accepted
+                                    </span>
+                                    <button
+                                      onClick={() => setActiveTab('stage-5')}
+                                      className="rec-btn-outline"
+                                      style={{ fontSize: '0.65rem', height: '26px', padding: '0 8px', color: '#0369a1', borderColor: '#bae6fd', background: '#f0f9ff' }}
+                                      title="Go to Shortlist tab"
+                                    >
+                                      View in Shortlist →
+                                    </button>
+                                  </div>
                                 ) : formApplicantStatuses[c.email] === 'declined' ? (
                                   <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '4px 10px', borderRadius: '99px', background: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                     <XCircle className="h-3.5 w-3.5 text-red-600" /> Declined
@@ -1388,20 +1823,14 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                                 ) : (
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                                     <button 
-                                      onClick={() => {
-                                        setFormApplicantStatuses(prev => ({ ...prev, [c.email]: 'accepted' }));
-                                        alert(`✅ Application accepted! ${c.firstName || c.name || 'Shiva'} moved to Shortlist.`);
-                                      }}
+                                      onClick={() => handleAcceptFormApplicant(c)}
                                       className="rec-btn-primary" 
                                       style={{ fontSize: '0.68rem', height: '28px', padding: '0 10px', background: '#16a34a', borderColor: '#15803d', gap: '4px' }}
                                     >
                                       <Check className="h-3.5 w-3.5" /> Accept
                                     </button>
                                     <button 
-                                      onClick={() => {
-                                        setFormApplicantStatuses(prev => ({ ...prev, [c.email]: 'declined' }));
-                                        alert(`❌ Application declined for ${c.firstName || c.name || 'Shiva'}.`);
-                                      }}
+                                      onClick={() => handleDeclineFormApplicant(c)}
                                       className="rec-btn-outline" 
                                       style={{ fontSize: '0.68rem', height: '28px', padding: '0 10px', color: '#dc2626', borderColor: '#fca5a5', background: '#fef2f2', gap: '4px' }}
                                     >
@@ -1481,7 +1910,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                       <button
                         onClick={() => {
-                          navigator.clipboard.writeText("https://docs.google.com/spreadsheets/d/16I1wxsTbRrJjLmDuC4-BBKRlcld0jND00TPu4mUnA54/edit?resourcekey=&gid=1489515753#gid=1489515753");
+                          navigator.clipboard.writeText(googleSheetUrl);
                           alert('✅ Google Sheet link copied to clipboard!');
                         }}
                         className="rec-btn-outline"
@@ -1491,7 +1920,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                       </button>
 
                       <a
-                        href="https://docs.google.com/spreadsheets/d/16I1wxsTbRrJjLmDuC4-BBKRlcld0jND00TPu4mUnA54/edit?resourcekey=&gid=1489515753#gid=1489515753"
+                        href={googleSheetUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="rec-btn-primary"
@@ -1612,9 +2041,19 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                                 </td>
                                 <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', textAlign: 'center' }}>
                                   {formApplicantStatuses[c.email] === 'accepted' ? (
-                                    <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '4px 10px', borderRadius: '99px', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                      <CheckCircle className="h-3.5 w-3.5 text-emerald-600" /> Accepted
-                                    </span>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                      <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '4px 10px', borderRadius: '99px', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        <CheckCircle className="h-3.5 w-3.5 text-emerald-600" /> Accepted
+                                      </span>
+                                      <button
+                                        onClick={() => setActiveTab('stage-5')}
+                                        className="rec-btn-outline"
+                                        style={{ fontSize: '0.65rem', height: '26px', padding: '0 8px', color: '#0369a1', borderColor: '#bae6fd', background: '#f0f9ff' }}
+                                        title="Go to Shortlist tab"
+                                      >
+                                        View in Shortlist →
+                                      </button>
+                                    </div>
                                   ) : formApplicantStatuses[c.email] === 'declined' ? (
                                     <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '4px 10px', borderRadius: '99px', background: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                       <XCircle className="h-3.5 w-3.5 text-red-600" /> Declined
@@ -1622,20 +2061,14 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                                   ) : (
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                                       <button 
-                                        onClick={() => {
-                                          setFormApplicantStatuses(prev => ({ ...prev, [c.email]: 'accepted' }));
-                                          alert(`✅ Application accepted! ${c.firstName || c.name || 'Shiva'} moved to Shortlist.`);
-                                        }}
+                                        onClick={() => handleAcceptFormApplicant(c)}
                                         className="rec-btn-primary" 
                                         style={{ fontSize: '0.68rem', height: '28px', padding: '0 10px', background: '#16a34a', borderColor: '#15803d', gap: '4px' }}
                                       >
                                         <Check className="h-3.5 w-3.5" /> Accept
                                       </button>
                                       <button 
-                                        onClick={() => {
-                                          setFormApplicantStatuses(prev => ({ ...prev, [c.email]: 'declined' }));
-                                          alert(`❌ Application declined for ${c.firstName || c.name || 'Shiva'}.`);
-                                        }}
+                                        onClick={() => handleDeclineFormApplicant(c)}
                                         className="rec-btn-outline" 
                                         style={{ fontSize: '0.68rem', height: '28px', padding: '0 10px', color: '#dc2626', borderColor: '#fca5a5', background: '#fef2f2', gap: '4px' }}
                                       >
@@ -1895,7 +2328,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                             <th>Candidate</th>
                             <th>Role Applied</th>
                             <th>Key Skills</th>
-                            <th>Match Score</th>
+                            <th>Candidate ID</th>
                             <th style={{ textAlign: 'right' }}>Action</th>
                           </tr>
                         </thead>
@@ -1922,16 +2355,9 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                                   </div>
                                 </td>
                                 <td>
-                                  {c.matchScore > 0 ? (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                      <span style={{ fontWeight: 800, color: '#6366f1', fontSize: '0.75rem' }}>{c.matchScore}%</span>
-                                      <div style={{ width: 40, height: 5, background: '#e2e8f0', borderRadius: 99, overflow: 'hidden' }}>
-                                        <div style={{ width: `${c.matchScore}%`, height: '100%', background: '#6366f1' }} />
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic' }}>Not Screened</span>
-                                  )}
+                                  <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#059669', fontFamily: 'monospace', padding: '2px 8px', background: '#ecfdf5', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
+                                    #{getCandidateCode(c)}
+                                  </span>
                                 </td>
                                 <td style={{ textAlign: 'right' }}>
                                   <button 
@@ -2018,15 +2444,32 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
                             <p style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600, marginTop: '0.125rem' }}>{c.jobTitle}</p>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                            <span style={{ fontSize: '1.1rem', fontWeight: 900, color: c.matchScore >= 80 ? '#10b981' : '#6366f1' }}>{c.matchScore}%</span>
-                            <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Match Score</span>
+                            <span style={{ fontSize: '0.95rem', fontWeight: 900, color: '#059669', fontFamily: 'monospace', background: '#ecfdf5', padding: '2px 8px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
+                              #{getCandidateCode(c)}
+                            </span>
+                            <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginTop: '2px' }}>Candidate ID</span>
                           </div>
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#f8fafc', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', fontSize: '0.7rem' }}>
-                          <div><span style={{ color: '#94a3b8' }}>Exp:</span> <span style={{ fontWeight: 700, color: '#475569' }}>{c.experience}</span></div>
+                          <div><span style={{ color: '#94a3b8' }}>Exp/Qual:</span> <span style={{ fontWeight: 700, color: '#475569' }}>{c.experience}</span></div>
                           <div><span style={{ color: '#94a3b8' }}>Source:</span> <span style={{ fontWeight: 700, color: '#475569' }}>{c.source}</span></div>
+                          {c.phone && <div><span style={{ color: '#94a3b8' }}>Phone:</span> <span style={{ fontWeight: 700, color: '#475569' }}>{c.phone}</span></div>}
+                          {c.location && <div><span style={{ color: '#94a3b8' }}>Location:</span> <span style={{ fontWeight: 700, color: '#475569' }}>{c.location}</span></div>}
                         </div>
+
+                        {c.resumeUrl && (
+                          <div style={{ fontSize: '0.68rem' }}>
+                            <a 
+                              href={c.resumeUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              style={{ color: '#2563eb', fontWeight: 700, textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            >
+                              <ExternalLink className="h-3 w-3" /> View Resume Link
+                            </a>
+                          </div>
+                        )}
 
                         <div>
                           <p style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 700, marginBottom: '4px' }}>Skills Fit</p>
@@ -2039,7 +2482,7 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
 
                         <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', paddingTop: '0.5rem' }}>
                           <button 
-                            onClick={() => updateCandidateStage(c.id, 'Rejected')} 
+                            onClick={() => handleDeclineFormApplicant(c)} 
                             className="rec-btn-outline" 
                             style={{ flex: 1, fontSize: '0.7rem', color: '#ef4444', borderColor: '#fee2e2', background: '#fef2f2', height: '32px', padding: '0' }}
                           >
@@ -2073,156 +2516,727 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
               </div>
             )}
 
-            {/* ════════════════ STAGE 6: INTERVIEWS ════════════════ */}
+            {/* ════════════════ STAGE 6: INTERVIEWS (ULTRA-PREMIUM UI) ════════════════ */}
             {activeTab === 'stage-6' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem', alignItems: 'start' }}>
-                {/* Interview Scheduler Form */}
-                <div className="rec-card" style={{ padding: '1.5rem' }}>
-                  <h2 className="rec-section-title" style={{ marginBottom: '1rem' }}>Stage 6: Coordinate Interview</h2>
-                  <p className="rec-section-sub" style={{ marginBottom: '1.5rem' }}>Set date, time, and team panel members</p>
-                  
-                  <div className="auth-luxury-label" style={{ marginBottom: '1.25rem' }}>
-                    Choose Shortlisted Candidate
-                    <select 
-                      className="rec-select" 
-                      style={{ width: '100%', height: '38px' }}
-                      value={selectedCandidate?.id || ''}
-                      onChange={e => {
-                        const cand = candidates.find(c => c.id === e.target.value);
-                        setSelectedCandidate(cand || null);
-                      }}
-                    >
-                      <option value="">-- Choose Candidate --</option>
-                      {candidates.filter(c => c.stage === 'Shortlisting' || c.stage === 'Interviews').map(c => (
-                        <option key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.jobTitle})</option>
-                      ))}
-                    </select>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+                {/* ── Top Executive Summary Metric Cards ── */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                  {/* Card 1: Total Scheduled Slots */}
+                  <div style={{ background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)', border: '1px solid #e2e8f0', borderRadius: '1.25rem', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', boxShadow: '0 4px 15px rgba(15, 23, 42, 0.03)' }}>
+                    <div style={{ padding: '0.75rem', background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)', borderRadius: '0.85rem', color: '#fff', boxShadow: '0 6px 14px rgba(99, 102, 241, 0.35)', display: 'flex' }}>
+                      <Calendar className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Scheduled Slots</p>
+                      <h3 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#0f172a', margin: '2px 0 0 0', letterSpacing: '-0.02em' }}>
+                        {candidates.filter(c => c.stage === 'Interviews').length}
+                      </h3>
+                    </div>
                   </div>
 
-                  {selectedCandidate && (
-                    <form onSubmit={(e) => { e.preventDefault(); handleScheduleInterview(selectedCandidate.id); }} className="flex flex-col gap-3">
-                      <div className="auth-luxury-label">
-                        Interview Date
-                        <input 
-                          type="date" 
-                          className="rec-search-input" 
-                          style={{ width: '100%', paddingLeft: '1rem', height: '36px' }}
-                          value={interviewForm.date}
-                          onChange={e => setInterviewForm({...interviewForm, date: e.target.value})}
-                        />
+                  {/* Card 2: Today's Sessions */}
+                  <div style={{ background: 'linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)', border: '1px solid #bbf7d0', borderRadius: '1.25rem', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.04)' }}>
+                    <div style={{ padding: '0.75rem', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', borderRadius: '0.85rem', color: '#fff', boxShadow: '0 6px 14px rgba(16, 185, 129, 0.35)', display: 'flex' }}>
+                      <Clock className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <p style={{ fontSize: '0.72rem', fontWeight: 700, color: '#047857', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Today's Sessions</p>
+                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981', display: 'inline-block', boxShadow: '0 0 8px #10b981' }}></span>
                       </div>
-                      <div className="auth-luxury-label">
-                        Time Slot
-                        <input 
-                          type="text" 
-                          className="rec-search-input" 
-                          style={{ width: '100%', paddingLeft: '1rem', height: '36px' }}
-                          placeholder="e.g. 11:30 AM"
-                          value={interviewForm.time}
-                          onChange={e => setInterviewForm({...interviewForm, time: e.target.value})}
-                        />
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                        <div className="auth-luxury-label">
-                          Interview Type
-                          <select 
-                            className="rec-select" 
-                            style={{ width: '100%', height: '36px' }}
-                            value={interviewForm.type}
-                            onChange={e => setInterviewForm({...interviewForm, type: e.target.value})}
-                          >
-                            <option>Technical</option>
-                            <option>Behavioral</option>
-                            <option>HR Screening</option>
-                            <option>Management</option>
-                          </select>
-                        </div>
-                        <div className="auth-luxury-label">
-                          Interviewer Name
-                          <input 
-                            type="text" 
-                            className="rec-search-input" 
-                            style={{ width: '100%', paddingLeft: '1rem', height: '36px' }}
-                            placeholder="e.g. Sneha Nair"
-                            value={interviewForm.interviewer}
-                            onChange={e => setInterviewForm({...interviewForm, interviewer: e.target.value})}
-                          />
-                        </div>
-                      </div>
+                      <h3 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#064e3b', margin: '2px 0 0 0', letterSpacing: '-0.02em' }}>
+                        {candidates.filter(c => c.stage === 'Interviews' && c.interviewDate && c.interviewDate.startsWith(format(new Date(), 'yyyy-MM-dd'))).length}
+                      </h3>
+                    </div>
+                  </div>
 
-                      <button type="submit" className="rec-btn-primary" style={{ height: '38px', justifyContent: 'center', marginTop: '0.5rem' }}>
-                        <Calendar className="h-4 w-4" /> Save Schedule details
-                      </button>
-                    </form>
-                  )}
+                  {/* Card 3: Tech & Coding Rounds */}
+                  <div style={{ background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 100%)', border: '1px solid #e9d5ff', borderRadius: '1.25rem', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', boxShadow: '0 4px 15px rgba(168, 85, 247, 0.04)' }}>
+                    <div style={{ padding: '0.75rem', background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)', borderRadius: '0.85rem', color: '#fff', boxShadow: '0 6px 14px rgba(168, 85, 247, 0.35)', display: 'flex' }}>
+                      <Cpu className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '0.72rem', fontWeight: 700, color: '#7e22ce', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Tech Rounds</p>
+                      <h3 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#581c87', margin: '2px 0 0 0', letterSpacing: '-0.02em' }}>
+                        {candidates.filter(c => c.stage === 'Interviews' && (c.interviewType?.includes('Technical') || c.interviewType?.includes('Coding'))).length}
+                      </h3>
+                    </div>
+                  </div>
+
+                  {/* Card 4: Offers Extended */}
+                  <div style={{ background: 'linear-gradient(135deg, #ffffff 0%, #fff7ed 100%)', border: '1px solid #fed7aa', borderRadius: '1.25rem', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', boxShadow: '0 4px 15px rgba(249, 115, 22, 0.04)' }}>
+                    <div style={{ padding: '0.75rem', background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', borderRadius: '0.85rem', color: '#fff', boxShadow: '0 6px 14px rgba(249, 115, 22, 0.35)', display: 'flex' }}>
+                      <Award className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '0.72rem', fontWeight: 700, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Offers Passed</p>
+                      <h3 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#7c2d12', margin: '2px 0 0 0', letterSpacing: '-0.02em' }}>
+                        {candidates.filter(c => c.stage === 'Offer' || c.stage === 'Onboarding' || c.stage === 'Documents').length}
+                      </h3>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Interviews Schedule List */}
-                <div className="rec-card" style={{ padding: '1.5rem' }}>
-                  <h2 className="rec-section-title" style={{ marginBottom: '1rem' }}>Active Interview Processes</h2>
-                  <p className="rec-section-sub" style={{ marginBottom: '1.25rem' }}>Pass/fail candidates based on interviews</p>
-                  
+                {/* ── Top Header & Calendar Controls ── */}
+                <div className="rec-card" style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)', border: '1px solid #e2e8f0', borderRadius: '1.25rem', boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.05)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1.25rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '1.25rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      <div style={{ padding: '0.75rem', background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', borderRadius: '1rem', color: '#fff', boxShadow: '0 6px 16px rgba(79, 70, 229, 0.35)', display: 'flex' }}>
+                        <Calendar className="h-7 w-7" />
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <h2 className="rec-section-title" style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: '#0f172a', letterSpacing: '-0.02em' }}>Interactive Interview Calendar</h2>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 800, padding: '2px 8px', borderRadius: '99px', background: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe' }}>
+                            Stage 6
+                          </span>
+                        </div>
+                        <p className="rec-section-sub" style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '0.85rem' }}>Select any calendar date or "+ Slot" button to setup video meetings and assign interview panels</p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                      {/* Month Switcher Controls */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#ffffff', border: '1.5px solid #e2e8f0', borderRadius: '0.75rem', padding: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                        <button
+                          onClick={() => setCurrentCalMonth(new Date(currentCalMonth.getFullYear(), currentCalMonth.getMonth() - 1, 1))}
+                          className="rec-btn-outline"
+                          style={{ height: '32px', width: '32px', padding: 0, border: 0, borderRadius: '0.5rem', justifyContent: 'center' }}
+                          title="Previous Month"
+                        >
+                          <ChevronLeft className="h-4 w-4 text-slate-700" />
+                        </button>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', padding: '0 12px', minWidth: '140px', textAlign: 'center', letterSpacing: '-0.01em' }}>
+                          {format(currentCalMonth, 'MMMM yyyy')}
+                        </span>
+                        <button
+                          onClick={() => setCurrentCalMonth(new Date(currentCalMonth.getFullYear(), currentCalMonth.getMonth() + 1, 1))}
+                          className="rec-btn-outline"
+                          style={{ height: '32px', width: '32px', padding: 0, border: 0, borderRadius: '0.5rem', justifyContent: 'center' }}
+                          title="Next Month"
+                        >
+                          <ChevronRight className="h-4 w-4 text-slate-700" />
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => setCurrentCalMonth(new Date())}
+                        className="rec-btn-outline"
+                        style={{ fontSize: '0.8rem', height: '38px', padding: '0 14px', borderRadius: '0.75rem', background: '#ffffff', borderColor: '#cbd5e1', color: '#334155', fontWeight: 700 }}
+                      >
+                        Today
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          if (!selectedCandidate) {
+                            const firstCand = candidates.find(c => c.stage === 'Shortlisting' || c.stage === 'Interviews') || candidates[0];
+                            if (firstCand) setSelectedCandidate(firstCand);
+                          }
+                          setShowScheduleModal(true);
+                        }}
+                        className="rec-btn-primary"
+                        style={{
+                          fontSize: '0.82rem',
+                          height: '38px',
+                          padding: '0 16px',
+                          borderRadius: '0.75rem',
+                          gap: '6px',
+                          background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #7c3aed 100%)',
+                          boxShadow: '0 4px 14px rgba(79, 70, 229, 0.4)',
+                          fontWeight: 700
+                        }}
+                      >
+                        <Plus className="h-4 w-4" /> Schedule Interview Slot
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ── Interactive Calendar Month Grid ── */}
+                  <div style={{ background: '#ffffff', borderRadius: '1rem', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 15px rgba(15, 23, 42, 0.03)' }}>
+                    {/* Day Headers (Sun-Sat) */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 800, fontSize: '0.75rem', color: '#475569', padding: '12px 0', letterSpacing: '0.05em' }}>
+                      <div>SUN</div>
+                      <div>MON</div>
+                      <div>TUE</div>
+                      <div>WED</div>
+                      <div>THU</div>
+                      <div>FRI</div>
+                      <div>SAT</div>
+                    </div>
+
+                    {/* Calendar Days Matrix */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gridAutoRows: 'minmax(115px, auto)', gap: '1px', background: '#e2e8f0' }}>
+                      {(() => {
+                        const year = currentCalMonth.getFullYear();
+                        const month = currentCalMonth.getMonth();
+                        const firstDayIdx = new Date(year, month, 1).getDay();
+                        const daysInMonth = new Date(year, month + 1, 0).getDate();
+                        const prevDaysInMonth = new Date(year, month, 0).getDate();
+                        
+                        const cells: { dateStr: string; dayNum: number; isCurrentMonth: boolean }[] = [];
+
+                        // Prev Month Days
+                        for (let i = firstDayIdx - 1; i >= 0; i--) {
+                          const d = prevDaysInMonth - i;
+                          const pM = month === 0 ? 11 : month - 1;
+                          const pY = month === 0 ? year - 1 : year;
+                          const dateStr = `${pY}-${String(pM + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                          cells.push({ dateStr, dayNum: d, isCurrentMonth: false });
+                        }
+
+                        // Current Month Days
+                        for (let i = 1; i <= daysInMonth; i++) {
+                          const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+                          cells.push({ dateStr, dayNum: i, isCurrentMonth: true });
+                        }
+
+                        // Next Month Days
+                        const remaining = (cells.length <= 35 ? 35 : 42) - cells.length;
+                        for (let i = 1; i <= remaining; i++) {
+                          const nM = month === 11 ? 0 : month + 1;
+                          const nY = month === 11 ? year + 1 : year;
+                          const dateStr = `${nY}-${String(nM + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+                          cells.push({ dateStr, dayNum: i, isCurrentMonth: false });
+                        }
+
+                        const todayStr = format(new Date(), 'yyyy-MM-dd');
+
+                        return cells.map((cell, idx) => {
+                          const isToday = cell.dateStr === todayStr;
+                          // Find active scheduled candidates for this date
+                          const dayInterviews = candidates.filter(c => c.stage === 'Interviews' && c.interviewDate && c.interviewDate.startsWith(cell.dateStr));
+
+                          return (
+                            <div
+                              key={idx}
+                              onClick={() => {
+                                setInterviewForm(prev => ({ ...prev, date: cell.dateStr }));
+                                if (!selectedCandidate) {
+                                  const cand = candidates.find(c => c.stage === 'Shortlisting' || c.stage === 'Interviews') || candidates[0];
+                                  if (cand) setSelectedCandidate(cand);
+                                }
+                                setShowScheduleModal(true);
+                              }}
+                              style={{
+                                background: isToday 
+                                  ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(124, 58, 237, 0.03) 100%)' 
+                                  : cell.isCurrentMonth ? '#ffffff' : '#f8fafc',
+                                padding: '10px 8px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '6px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                border: isToday ? '2px solid #6366f1' : 'none',
+                                position: 'relative',
+                                boxShadow: isToday ? 'inset 0 0 0 1px rgba(99, 102, 241, 0.2)' : 'none'
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.background = isToday ? 'rgba(99, 102, 241, 0.12)' : cell.isCurrentMonth ? '#f0f9ff' : '#f1f5f9')}
+                              onMouseLeave={e => (e.currentTarget.style.background = isToday ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(124, 58, 237, 0.03) 100%)' : cell.isCurrentMonth ? '#ffffff' : '#f8fafc')}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span style={{
+                                  fontSize: '0.8rem',
+                                  fontWeight: isToday ? 900 : cell.isCurrentMonth ? 700 : 500,
+                                  color: isToday ? '#ffffff' : cell.isCurrentMonth ? '#0f172a' : '#94a3b8',
+                                  width: '24px',
+                                  height: '24px',
+                                  borderRadius: '50%',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  background: isToday ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : 'transparent',
+                                  boxShadow: isToday ? '0 2px 6px rgba(99, 102, 241, 0.4)' : 'none'
+                                }}>
+                                  {cell.dayNum}
+                                </span>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  {isToday && (
+                                    <span style={{ fontSize: '0.55rem', fontWeight: 900, background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: '#fff', padding: '2px 6px', borderRadius: '99px', letterSpacing: '0.05em' }}>
+                                      TODAY
+                                    </span>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openAddSlotModal(cell.dateStr);
+                                    }}
+                                    style={{
+                                      fontSize: '0.62rem',
+                                      fontWeight: 800,
+                                      background: '#eff6ff',
+                                      color: '#3b82f6',
+                                      border: '1px solid #bfdbfe',
+                                      borderRadius: '6px',
+                                      padding: '2px 7px',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.15s ease'
+                                    }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = '#3b82f6'; e.currentTarget.style.color = '#fff'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.color = '#3b82f6'; }}
+                                    title={`Add another interview slot for ${cell.dateStr}`}
+                                  >
+                                    + Slot
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Scheduled Interview Pills on Calendar */}
+                              <div className="custom-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '2px', overflowY: 'auto', maxHeight: '72px' }}>
+                                {dayInterviews.map(cand => {
+                                  const isTech = cand.interviewType?.includes('Technical') || cand.interviewType?.includes('Coding');
+                                  const isHR = cand.interviewType?.includes('HR') || cand.interviewType?.includes('Screening');
+                                  const isFinal = cand.interviewType?.includes('Management') || cand.interviewType?.includes('Final');
+
+                                  const bgGrad = isTech
+                                    ? 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)'
+                                    : isHR
+                                    ? 'linear-gradient(135deg, #e0e7ff 0%, #ede9fe 100%)'
+                                    : isFinal
+                                    ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)'
+                                    : 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)';
+
+                                  const borderCol = isTech ? '#a7f3d0' : isHR ? '#c7d2fe' : isFinal ? '#fde68a' : '#bae6fd';
+                                  const textCol = isTech ? '#047857' : isHR ? '#3730a3' : isFinal ? '#b45309' : '#0369a1';
+
+                                  return (
+                                    <div
+                                      key={cand.id}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedCandidate(cand);
+                                        setShowScheduleModal(true);
+                                      }}
+                                      style={{
+                                        background: bgGrad,
+                                        border: `1px solid ${borderCol}`,
+                                        borderRadius: '6px',
+                                        padding: '4px 8px',
+                                        fontSize: '0.65rem',
+                                        color: textCol,
+                                        fontWeight: 800,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '5px',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                                        transition: 'all 0.15s ease'
+                                      }}
+                                      onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+                                      onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                                      title={`${cand.firstName} ${cand.lastName} (${cand.interviewTime || '11:30 AM'}) - ${cand.interviewType || 'Interview'}`}
+                                    >
+                                      <Video className="h-3 w-3 flex-shrink-0" style={{ color: textCol }} />
+                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {cand.interviewTime || '11:30 AM'} · {cand.firstName}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Scheduled Interviews Table Section ── */}
+                <div className="rec-card" style={{ padding: '1.75rem', background: '#ffffff', borderRadius: '1.25rem', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.04)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <h2 className="rec-section-title" style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>Active Scheduled Interviews</h2>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 800, padding: '3px 10px', borderRadius: '99px', background: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe' }}>
+                          {candidates.filter(c => c.stage === 'Interviews').length} Active
+                        </span>
+                      </div>
+                      <p className="rec-section-sub" style={{ margin: '3px 0 0 0', color: '#64748b' }}>Launch Google Meet video sessions, copy meeting URLs, and evaluate candidate interview outcomes</p>
+                    </div>
+                  </div>
+
                   <div style={{ overflowX: 'auto' }}>
-                    <table className="rec-table">
+                    <table className="rec-table" style={{ width: '100%' }}>
                       <thead>
-                        <tr>
-                          <th>Candidate</th>
-                          <th>Schedule</th>
-                          <th>Panel</th>
-                          <th>Status</th>
-                          <th style={{ textAlign: 'left', paddingLeft: '1rem' }}>Actions</th>
+                        <tr style={{ background: '#f8fafc' }}>
+                          <th style={{ padding: '12px 16px', borderRadius: '8px 0 0 8px' }}>Candidate Details</th>
+                          <th style={{ padding: '12px 16px' }}>Candidate ID</th>
+                          <th style={{ padding: '12px 16px' }}>Date & Time</th>
+                          <th style={{ padding: '12px 16px' }}>Interview Panel</th>
+                          <th style={{ padding: '12px 16px' }}>Meeting Link</th>
+                          <th style={{ padding: '12px 16px' }}>Status</th>
+                          <th style={{ textAlign: 'left', padding: '12px 16px', borderRadius: '0 8px 8px 0' }}>Evaluation Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {candidates.filter(c => c.stage === 'Interviews').length === 0 ? (
                           <tr>
-                            <td colSpan={5} style={{ textAlign: 'center', padding: '2.5rem', color: '#94a3b8', fontSize: '0.75rem' }}>
-                              No active interviews scheduled. Use form to setup interviews for shortlisted candidates.
+                            <td colSpan={7} style={{ textAlign: 'center', padding: '3rem 1.5rem', color: '#94a3b8', fontSize: '0.82rem' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                                <Calendar className="h-8 w-8 text-slate-300" />
+                                <p style={{ margin: 0, fontWeight: 600, color: '#64748b' }}>No active interviews scheduled yet</p>
+                                <p style={{ margin: 0, fontSize: '0.75rem', color: '#94a3b8' }}>Select any date cell on the calendar above or click "+ Schedule Interview Slot" to get started.</p>
+                              </div>
                             </td>
                           </tr>
                         ) : (
-                          candidates.filter(c => c.stage === 'Interviews').map(c => (
-                            <tr key={c.id} className="rec-table-row">
-                              <td>
-                                <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0f172a' }}>{c.firstName} {c.lastName}</p>
-                                <p style={{ fontSize: '0.65rem', color: '#64748b' }}>{c.jobTitle}</p>
-                              </td>
-                              <td>
-                                {c.interviewDate ? (
-                                  <div>
-                                    <p style={{ fontSize: '0.72rem', fontWeight: 700, color: '#4f46e5' }}>{c.interviewDate}</p>
-                                    <p style={{ fontSize: '0.65rem', color: '#64748b' }}>{c.interviewTime}</p>
+                          candidates.filter(c => c.stage === 'Interviews').map(c => {
+                            const candCode = getCandidateCode(c);
+                            const meetLink = c.interviewLink || '';
+
+                            return (
+                              <tr key={c.id} className="rec-table-row" style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s ease' }}>
+                                <td style={{ padding: '14px 16px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.8rem', boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)' }}>
+                                      {c.firstName.charAt(0)}
+                                    </div>
+                                    <div>
+                                      <p style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>{c.firstName} {c.lastName}</p>
+                                      <p style={{ fontSize: '0.7rem', color: '#64748b', margin: '1px 0 0 0', fontWeight: 500 }}>{c.jobTitle}</p>
+                                    </div>
                                   </div>
-                                ) : (
-                                  <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic' }}>Pending inputs</span>
-                                )}
-                              </td>
-                              <td>
-                                <p style={{ fontSize: '0.72rem', fontWeight: 700, color: '#334155' }}>{c.interviewer}</p>
-                                <p style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{c.interviewType}</p>
-                              </td>
-                              <td>
-                                <span style={{ fontSize: '0.65rem', padding: '3px 8px', background: '#fffbeb', color: '#d97706', border: '1px solid #fef3c7', borderRadius: '6px', fontWeight: 700 }}>
-                                  Scheduled
-                                </span>
-                              </td>
-                              <td style={{ textAlign: 'left', paddingLeft: '1rem' }}>
-                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-start' }}>
-                                  <button onClick={() => handleInterviewDecision(c.id, 'fail')} className="rec-btn-outline" style={{ fontSize: '0.65rem', color: '#ef4444', borderColor: '#fca5a5', padding: '0 0.5rem', height: '26px' }}>
-                                    Fail
-                                  </button>
-                                  <button onClick={() => handleInterviewDecision(c.id, 'pass')} className="rec-btn-primary" style={{ fontSize: '0.65rem', padding: '0 0.5rem', height: '26px', background: '#10b981' }}>
-                                    Pass & Offer
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))
+                                </td>
+                                <td style={{ padding: '14px 16px' }}>
+                                  <span style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '0.75rem', color: '#4338ca', background: '#e0e7ff', padding: '3px 10px', borderRadius: '6px', border: '1px solid #c7d2fe' }}>
+                                    #{candCode}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '14px 16px' }}>
+                                  {c.interviewDate ? (
+                                    <div>
+                                      <p style={{ fontSize: '0.78rem', fontWeight: 800, color: '#4f46e5', margin: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <Calendar className="h-3.5 w-3.5 text-indigo-500" /> {c.interviewDate}
+                                      </p>
+                                      <p style={{ fontSize: '0.7rem', color: '#475569', margin: '2px 0 0 0', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <Clock className="h-3 w-3 text-slate-400" /> {c.interviewTime || '11:30 AM'}
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic' }}>Pending slot</span>
+                                  )}
+                                </td>
+                                <td style={{ padding: '14px 16px' }}>
+                                  <p style={{ fontSize: '0.78rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>{c.interviewer || 'Sneha Nair'}</p>
+                                  <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', marginTop: '2px', display: 'inline-block' }}>
+                                    {c.interviewType || 'HR Screening'}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '14px 16px' }}>
+                                  {meetLink ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <a
+                                        href={meetLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="rec-btn-primary"
+                                        style={{
+                                          fontSize: '0.72rem',
+                                          height: '32px',
+                                          padding: '0 12px',
+                                          gap: '6px',
+                                          background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                                          textDecoration: 'none',
+                                          borderRadius: '0.5rem',
+                                          boxShadow: '0 3px 8px rgba(16, 185, 129, 0.3)',
+                                          fontWeight: 700
+                                        }}
+                                      >
+                                        <Video className="h-3.5 w-3.5" /> Join Google Meet
+                                      </a>
+                                      <button
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(meetLink);
+                                          alert('✅ Google Meet link copied to clipboard!');
+                                        }}
+                                        className="rec-btn-outline"
+                                        style={{ height: '32px', width: '32px', padding: 0, borderRadius: '0.5rem', justifyContent: 'center', borderColor: '#cbd5e1' }}
+                                        title="Copy Meeting Link"
+                                      >
+                                        <Copy className="h-3.5 w-3.5 text-slate-600" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic' }}>No link provided</span>
+                                  )}
+                                </td>
+                                <td style={{ padding: '14px 16px' }}>
+                                  <span style={{ fontSize: '0.68rem', padding: '4px 10px', background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', borderRadius: '99px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#d97706' }}></span> Scheduled
+                                  </span>
+                                </td>
+                                <td style={{ textAlign: 'left', padding: '14px 16px' }}>
+                                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-start' }}>
+                                    <button
+                                      onClick={() => handleInterviewDecision(c.id, 'fail')}
+                                      className="rec-btn-outline"
+                                      style={{ fontSize: '0.7rem', color: '#dc2626', borderColor: '#fca5a5', background: '#fef2f2', padding: '0 10px', height: '32px', borderRadius: '0.5rem', fontWeight: 700 }}
+                                    >
+                                      Reject
+                                    </button>
+                                    <button
+                                      onClick={() => handleInterviewDecision(c.id, 'pass')}
+                                      className="rec-btn-primary"
+                                      style={{ fontSize: '0.7rem', padding: '0 12px', height: '32px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', borderRadius: '0.5rem', fontWeight: 700, boxShadow: '0 3px 8px rgba(16, 185, 129, 0.3)' }}
+                                    >
+                                      Pass & Extend Offer
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
                         )}
                       </tbody>
                     </table>
                   </div>
                 </div>
+
+                {/* ════════════════ SCHEDULE INTERVIEW SLOT MODAL ════════════════ */}
+                {showScheduleModal && (
+                  <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(8px)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                    <div style={{ background: '#ffffff', borderRadius: '1.25rem', width: '100%', maxWidth: '540px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)', overflow: 'hidden', border: '1px solid #e2e8f0', animation: 'fadeIn 0.2s ease-out' }}>
+                      {/* Modal Header */}
+                      <div style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #7c3aed 100%)', padding: '1.25rem 1.75rem', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ padding: '6px', background: 'rgba(255, 255, 255, 0.2)', borderRadius: '8px' }}>
+                            <Calendar className="h-5 w-5 text-white" />
+                          </div>
+                          <div>
+                            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>Schedule Interview Slot</h3>
+                            <p style={{ fontSize: '0.72rem', color: '#e0e7ff', margin: '2px 0 0 0' }}>Assign video meeting, date, time & panel members</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setShowScheduleModal(false)}
+                          style={{ background: 'rgba(255, 255, 255, 0.2)', border: 0, color: '#fff', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', fontWeight: 800, transition: 'all 0.2s' }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      {/* Modal Body */}
+                      <form onSubmit={(e) => { e.preventDefault(); if (selectedCandidate) handleScheduleInterview(selectedCandidate.id); }} style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        {/* Summary of existing slots on this date */}
+                        {(() => {
+                          const slotsOnDate = candidates.filter(c => c.interviewDate === interviewForm.date);
+                          if (slotsOnDate.length === 0) return null;
+                          return (
+                            <div style={{ background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: '0.85rem', padding: '0.85rem', fontSize: '0.75rem' }}>
+                              <p style={{ fontWeight: 800, color: '#6b21a8', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Calendar className="h-4 w-4" /> {slotsOnDate.length} Interview Slot{slotsOnDate.length > 1 ? 's' : ''} Already Scheduled on {interviewForm.date}:
+                              </p>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                {slotsOnDate.map(cand => (
+                                  <div key={cand.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', padding: '5px 10px', borderRadius: '6px', border: '1px solid #d8b4fe' }}>
+                                    <span style={{ fontWeight: 700, color: '#0f172a' }}>{cand.interviewTime || '11:30 AM'} · {cand.firstName} {cand.lastName}</span>
+                                    <span style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 600 }}>{cand.interviewType || 'HR'} ({cand.interviewer || 'Panel'})</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Select Candidate */}
+                        <div className="auth-luxury-label">
+                          Select Candidate *
+                          <select 
+                            className="rec-select" 
+                            style={{ width: '100%', height: '42px', marginTop: '4px', borderRadius: '0.75rem', fontWeight: 700 }}
+                            value={selectedCandidate?.id || ''}
+                            onChange={e => {
+                              const cand = candidates.find(c => c.id === e.target.value);
+                              setSelectedCandidate(cand || null);
+                            }}
+                            required
+                          >
+                            <option value="">-- Select Candidate --</option>
+                            {candidates.filter(c => c.stage === 'Shortlisting' || c.stage === 'Interviews' || c.stage === 'Applications').map(c => (
+                              <option key={c.id} value={c.id}>
+                                {c.firstName} {c.lastName} ({c.jobTitle}) - #{getCandidateCode(c)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Date & Time Row */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                          <div className="auth-luxury-label">
+                            Interview Date *
+                            <input 
+                              type="date" 
+                              className="rec-search-input" 
+                              style={{ width: '100%', paddingLeft: '0.85rem', height: '42px', marginTop: '4px', borderRadius: '0.75rem', fontWeight: 700 }}
+                              value={interviewForm.date}
+                              onChange={e => setInterviewForm({...interviewForm, date: e.target.value})}
+                              required
+                            />
+                          </div>
+                          <div className="auth-luxury-label">
+                            Time Slot *
+                            {(() => {
+                              const slots = [
+                                '09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
+                                '12:00 PM', '12:30 PM', '01:30 PM', '02:00 PM', '02:30 PM', '03:00 PM',
+                                '03:30 PM', '04:00 PM', '04:30 PM', '05:00 PM', '05:30 PM', '06:00 PM'
+                              ];
+                              const isConflict = candidates.some(c => 
+                                c.interviewDate === interviewForm.date && 
+                                (c.interviewTime || '').trim().toLowerCase() === (interviewForm.time || '').trim().toLowerCase() && 
+                                c.id !== selectedCandidate?.id &&
+                                c.email !== selectedCandidate?.id
+                              );
+                              const conflictingCand = candidates.find(c => 
+                                c.interviewDate === interviewForm.date && 
+                                (c.interviewTime || '').trim().toLowerCase() === (interviewForm.time || '').trim().toLowerCase() && 
+                                c.id !== selectedCandidate?.id &&
+                                c.email !== selectedCandidate?.id
+                              );
+
+                              return (
+                                <div>
+                                  <select
+                                    className="rec-select"
+                                    style={{
+                                      width: '100%',
+                                      height: '42px',
+                                      marginTop: '4px',
+                                      borderRadius: '0.75rem',
+                                      fontWeight: 700,
+                                      borderColor: isConflict ? '#fca5a5' : undefined,
+                                      background: isConflict ? '#fef2f2' : undefined
+                                    }}
+                                    value={interviewForm.time}
+                                    onChange={e => setInterviewForm({ ...interviewForm, time: e.target.value })}
+                                    required
+                                  >
+                                    <option value="">-- Select Available Slot --</option>
+                                    {slots.map(s => {
+                                      const bookedCand = candidates.find(c => 
+                                        c.interviewDate === interviewForm.date && 
+                                        (c.interviewTime || '').trim().toLowerCase() === s.toLowerCase() && 
+                                        c.id !== selectedCandidate?.id &&
+                                        c.email !== selectedCandidate?.id
+                                      );
+                                      return (
+                                        <option 
+                                          key={s} 
+                                          value={s} 
+                                          disabled={!!bookedCand}
+                                          style={{ color: bookedCand ? '#94a3b8' : '#0f172a', fontWeight: bookedCand ? 400 : 700 }}
+                                        >
+                                          {s} {bookedCand ? `⛔ (BOOKED - ${bookedCand.firstName} ${bookedCand.lastName})` : '✅ (Available)'}
+                                        </option>
+                                      );
+                                    })}
+                                  </select>
+                                  {isConflict && conflictingCand && (
+                                    <p style={{ fontSize: '0.7rem', color: '#dc2626', fontWeight: 800, margin: '4px 0 0 0' }}>
+                                      ⚠️ Slot "{interviewForm.time}" is ALREADY BOOKED for {conflictingCand.firstName} {conflictingCand.lastName}.
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+
+                        {/* Type & Panel Row */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                          <div className="auth-luxury-label">
+                            Interview Type
+                            <select 
+                              className="rec-select" 
+                              style={{ width: '100%', height: '42px', marginTop: '4px', borderRadius: '0.75rem', fontWeight: 700 }}
+                              value={interviewForm.type}
+                              onChange={e => setInterviewForm({...interviewForm, type: e.target.value})}
+                            >
+                              <option>HR Screening</option>
+                              <option>Technical Round</option>
+                              <option>Coding Assessment</option>
+                              <option>Management Final</option>
+                            </select>
+                          </div>
+                          <div className="auth-luxury-label">
+                            Interviewer / Panel *
+                            <input 
+                              type="text" 
+                              className="rec-search-input" 
+                              style={{ width: '100%', paddingLeft: '0.85rem', height: '42px', marginTop: '4px', borderRadius: '0.75rem', fontWeight: 700 }}
+                              placeholder="e.g. Sneha Nair"
+                              value={interviewForm.interviewer}
+                              onChange={e => setInterviewForm({...interviewForm, interviewer: e.target.value})}
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        {/* Meeting Link Field */}
+                        <div className="auth-luxury-label">
+                          Interview Video Meeting Link *
+                          <div style={{ marginTop: '4px' }}>
+                            <input 
+                              type="url" 
+                              className="rec-search-input" 
+                              style={{ width: '100%', paddingLeft: '0.85rem', height: '42px', borderRadius: '0.75rem', fontWeight: 600 }}
+                              placeholder="Paste Google Meet URL (e.g. https://meet.google.com/xyz-uvwx-rst)"
+                              value={interviewForm.link}
+                              onChange={e => setInterviewForm({...interviewForm, link: e.target.value})}
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        {/* Modal Footer Actions */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem', paddingTop: '1.25rem', borderTop: '1px solid #f1f5f9' }}>
+                          <button
+                            type="button"
+                            onClick={() => setShowScheduleModal(false)}
+                            className="rec-btn-outline"
+                            style={{ height: '42px', padding: '0 1.5rem', borderRadius: '0.75rem', fontWeight: 700 }}
+                          >
+                            Cancel
+                          </button>
+                          {(() => {
+                            const isConflict = candidates.some(c => 
+                              c.interviewDate === interviewForm.date && 
+                              (c.interviewTime || '').trim().toLowerCase() === (interviewForm.time || '').trim().toLowerCase() && 
+                              c.id !== selectedCandidate?.id &&
+                              c.email !== selectedCandidate?.id
+                            );
+                            const isMissingLink = !interviewForm.link || !interviewForm.link.trim();
+                            const isDisabled = isConflict || !selectedCandidate || isMissingLink;
+
+                            return (
+                              <button
+                                type="submit"
+                                disabled={isDisabled}
+                                className="rec-btn-primary"
+                                style={{
+                                  height: '42px',
+                                  padding: '0 1.75rem',
+                                  borderRadius: '0.75rem',
+                                  background: isDisabled ? '#94a3b8' : 'linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #7c3aed 100%)',
+                                  boxShadow: isDisabled ? 'none' : '0 4px 14px rgba(79, 70, 229, 0.4)',
+                                  cursor: isDisabled ? 'not-allowed' : 'pointer',
+                                  fontWeight: 800
+                                }}
+                              >
+                                <Calendar className="h-4 w-4" /> Save & Confirm Schedule
+                              </button>
+                            );
+                          })()}
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2321,83 +3335,227 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
               </div>
             )}
 
-            {/* ════════════════ STAGE 8: DOCUMENTS ════════════════ */}
+            {/* ════════════════ STAGE 8: DOCUMENTS (WITH GOOGLE FORM INTEGRATION) ════════════════ */}
             {activeTab === 'stage-8' && (
-              <div className="rec-card" style={{ padding: '1.5rem' }}>
-                <h2 className="rec-section-title" style={{ marginBottom: '0.5rem' }}>Stage 8: Document Verification</h2>
-                <p className="rec-section-sub" style={{ marginBottom: '1.5rem' }}>HR collects and verifies credential proofs before onboard activation</p>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1.5rem' }}>
-                  {candidates.filter(c => c.stage === 'Documents').length === 0 ? (
-                    <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '3rem', background: '#f8fafc', borderRadius: '1rem', border: '1px solid #e2e8f0', color: '#94a3b8', fontSize: '0.75rem' }}>
-                      No candidates currently in Document verification. Collect candidate offer acceptance in Stage 7.
-                    </div>
-                  ) : (
-                    candidates.filter(c => c.stage === 'Documents').map(c => (
-                      <div key={c.id} style={{ background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: '1rem', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
-                          <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>{c.firstName} {c.lastName}</h3>
-                          <p style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600 }}>{c.jobTitle} · Joint: {c.offerJoiningDate}</p>
-                        </div>
-
-                        <div>
-                          <p style={{ fontSize: '0.7rem', fontWeight: 800, color: '#475569', marginBottom: '0.5rem' }}>Collected Document Verification Scans</p>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            {[
-                              { type: 'Govt Identity Proof', field: 'identity' },
-                              { type: 'Work Experience Certificate', field: 'work' },
-                              { type: 'Highest Education Proof', field: 'edu' },
-                            ].map((doc, idx) => {
-                              const uploaded = c.attachmentImages && c.attachmentImages.length > idx;
-                              return (
-                                <div key={doc.field} style={{ display: 'flex', alignItems: 'center', justifyItems: 'space-between', padding: '0.5rem 0.75rem', background: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}>
-                                    <FileText className="h-4 w-4 text-indigo-500" />
-                                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#334155' }}>{doc.type}</span>
-                                  </div>
-                                  <div>
-                                    {uploaded ? (
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <span style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '2px' }}>
-                                          <CheckCircle className="h-3.5 w-3.5" /> Uploaded
-                                        </span>
-                                        <button onClick={() => {
-                                          if (c.attachmentImages) setSelectedCandidate(c);
-                                        }} className="rec-icon-btn" style={{ width: 24, height: 24 }}>
-                                          <Eye className="h-3 w-3" />
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <button 
-                                        disabled={uploadingDocType !== null} 
-                                        onClick={() => handleUploadMockDoc(c.id, doc.type)} 
-                                        className="rec-btn-outline" 
-                                        style={{ fontSize: '0.65rem', height: '24px', padding: '0 0.5rem' }}
-                                      >
-                                        {uploadingDocType === doc.type ? 'Uploading...' : 'Upload Mock Scan'}
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        <button 
-                          disabled={!c.attachmentImages || c.attachmentImages.length < 3} 
-                          onClick={() => handleVerifyDocumentsSubmit(c.id)} 
-                          className="rec-btn-primary" 
-                          style={{ width: '100%', height: '36px', justifyContent: 'center', marginTop: '0.5rem', background: (!c.attachmentImages || c.attachmentImages.length < 3) ? '#cbd5e1' : undefined }}
-                        >
-                          <UserCheck className="h-4 w-4" /> Verify & Approve Documents
-                        </button>
-                        {(!c.attachmentImages || c.attachmentImages.length < 3) && (
-                          <p style={{ fontSize: '0.62rem', color: '#94a3b8', textAlign: 'center', marginTop: '-0.25rem' }}>Upload all mock scans first to enable verification</p>
-                        )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {/* Google Form Integration Header Bar */}
+                <div className="rec-card" style={{ padding: '1.5rem', background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)', border: '1px solid #e2e8f0', borderRadius: '1.25rem', boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.04)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ padding: '0.65rem', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', borderRadius: '0.85rem', color: '#fff', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)', display: 'flex' }}>
+                        <FolderOpen className="h-6 w-6" />
                       </div>
-                    ))
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <h2 className="rec-section-title" style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>Stage 8: Document Verification & Google Form Collector</h2>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 800, padding: '2px 8px', borderRadius: '99px', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' }}>
+                            Google Form Enabled
+                          </span>
+                        </div>
+                        <p className="rec-section-sub" style={{ margin: '3px 0 0 0', color: '#64748b' }}>HR collects and verifies credential proofs and Google Form attachments before onboard activation</p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                      <a
+                        href={googleSheetUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rec-btn-outline"
+                        style={{ fontSize: '0.78rem', height: '38px', padding: '0 14px', borderRadius: '0.75rem', gap: '6px', textDecoration: 'none', background: '#fff', borderColor: '#cbd5e1', color: '#334155', fontWeight: 700 }}
+                      >
+                        <ExternalLink className="h-4 w-4 text-emerald-600" /> View Google Form Sheet
+                      </a>
+                      <button
+                        onClick={() => setShowFormModal(!showFormModal)}
+                        className="rec-btn-primary"
+                        style={{ fontSize: '0.78rem', height: '38px', padding: '0 16px', borderRadius: '0.75rem', gap: '6px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)', fontWeight: 700 }}
+                      >
+                        <FileText className="h-4 w-4" /> {showFormModal ? 'Hide Google Form' : 'Show Google Form Collector'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Embedded Google Form Section (Toggled) */}
+                  {showFormModal && (
+                    <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f0fdf4', padding: '10px 14px', borderRadius: '0.75rem', border: '1px solid #bbf7d0' }}>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#166534', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <CheckCircle className="h-4 w-4 text-emerald-600" /> Embedded Google Form Document Collector (Live Response Sync)
+                        </span>
+                        <a href={googleFormEmbedUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.72rem', color: '#059669', fontWeight: 700, textDecoration: 'underline' }}>
+                          Open in New Tab ↗
+                        </a>
+                      </div>
+                      <div style={{ width: '100%', height: '520px', borderRadius: '0.85rem', overflow: 'hidden', border: '1.5px solid #cbd5e1', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
+                        <iframe
+                          src={googleFormEmbedUrl}
+                          width="100%"
+                          height="100%"
+                          frameBorder="0"
+                          marginHeight={0}
+                          marginWidth={0}
+                          title="Google Form Document Collection"
+                        >
+                          Loading Document Google Form...
+                        </iframe>
+                      </div>
+                    </div>
                   )}
+                </div>
+
+                {/* Candidate Document Verification Cards Matrix */}
+                <div className="rec-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '1.25rem', border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '1.5rem' }}>
+                    {candidates.filter(c => c.stage === 'Documents').length === 0 ? (
+                      <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '3.5rem 1.5rem', background: '#f8fafc', borderRadius: '1rem', border: '1px solid #e2e8f0', color: '#94a3b8', fontSize: '0.82rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                          <FolderOpen className="h-8 w-8 text-slate-300" />
+                          <p style={{ margin: 0, fontWeight: 700, color: '#64748b' }}>No candidates currently pending Document Verification</p>
+                          <p style={{ margin: 0, fontSize: '0.75rem', color: '#94a3b8' }}>Candidates who pass the Stage 6 Interview will automatically appear here.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      candidates.filter(c => c.stage === 'Documents').map(c => {
+                        const formAtts = (c.attachmentImages || []).map((att, idx) => parseAttachmentItem(att, idx));
+
+                        return (
+                          <div key={c.id} style={{ background: '#ffffff', border: '1.5px solid #e2e8f0', borderRadius: '1.15rem', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', boxShadow: '0 4px 15px rgba(15, 23, 42, 0.03)' }}>
+                            {/* Candidate Header */}
+                            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.85rem', boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)' }}>
+                                  {c.firstName.charAt(0)}
+                                </div>
+                                <div>
+                                  <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>{c.firstName} {c.lastName}</h3>
+                                  <p style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600, margin: '2px 0 0 0' }}>{c.jobTitle} · #{getCandidateCode(c)}</p>
+                                </div>
+                              </div>
+                              <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '3px 8px', borderRadius: '99px', background: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe' }}>
+                                Stage 8
+                              </span>
+                            </div>
+
+                            {/* Google Form Attachments List (If candidate has form uploads) */}
+                            <div style={{ background: '#f8fafc', borderRadius: '0.85rem', padding: '0.85rem', border: '1px solid #e2e8f0' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                <p style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <FileText className="h-4 w-4 text-emerald-600" /> Submitted Google Form Attachments ({formAtts.length})
+                                </p>
+                                {formAtts.length > 0 && (
+                                  <span style={{ fontSize: '0.6rem', color: '#059669', fontWeight: 800, background: '#dcfce7', padding: '1px 6px', borderRadius: '4px' }}>
+                                    Synced
+                                  </span>
+                                )}
+                              </div>
+
+                              {formAtts.length === 0 ? (
+                                <p style={{ fontSize: '0.7rem', color: '#94a3b8', margin: 0, fontStyle: 'italic' }}>
+                                  No raw Google Form attachments attached. Use Google Form collector or upload scans below.
+                                </p>
+                              ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                  {formAtts.map((att, idx) => (
+                                    <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#ffffff', padding: '6px 10px', borderRadius: '0.5rem', border: '1px solid #cbd5e1' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                                        <FileText className="h-3.5 w-3.5 text-indigo-500 flex-shrink-0" />
+                                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          {att.name || `Document ${idx + 1}`}
+                                        </span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => setPreviewMediaAttachment(att)}
+                                        className="rec-btn-outline"
+                                        style={{ fontSize: '0.68rem', height: '26px', padding: '0 8px', gap: '4px', color: '#4f46e5', borderColor: '#c7d2fe', fontWeight: 700 }}
+                                      >
+                                        <Eye className="h-3 w-3" /> View Document
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Required Verification Document Scans List */}
+                            <div>
+                              <p style={{ fontSize: '0.75rem', fontWeight: 800, color: '#334155', marginBottom: '0.65rem' }}>Credential Verification Checklist</p>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                {[
+                                  { type: 'Govt Identity Proof (Aadhaar/Passport)', field: 'identity' },
+                                  { type: 'Work Experience Certificate', field: 'work' },
+                                  { type: 'Highest Education Proof', field: 'edu' },
+                                ].map((doc, idx) => {
+                                  const uploaded = (c.attachmentImages && c.attachmentImages.length > idx) || formAtts.length > idx;
+                                  return (
+                                    <div key={doc.field} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.85rem', background: uploaded ? '#f0fdf4' : '#f8fafc', borderRadius: '0.65rem', border: `1px solid ${uploaded ? '#bbf7d0' : '#e2e8f0'}` }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                                        <FileText className="h-4 w-4 text-indigo-600" />
+                                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#1e293b' }}>{doc.type}</span>
+                                      </div>
+                                      <div>
+                                        {uploaded ? (
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ fontSize: '0.68rem', color: '#15803d', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                              <CheckCircle className="h-4 w-4 text-emerald-600" /> Uploaded
+                                            </span>
+                                            <button
+                                              onClick={() => {
+                                                if (formAtts[idx]) setPreviewMediaAttachment(formAtts[idx]);
+                                                else setSelectedCandidate(c);
+                                              }}
+                                              className="rec-icon-btn"
+                                              style={{ width: 28, height: 28, borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                              title="View Document"
+                                            >
+                                              <Eye className="h-3.5 w-3.5 text-slate-600" />
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <button
+                                            disabled={uploadingDocType !== null}
+                                            onClick={() => handleUploadMockDoc(c.id, doc.type)}
+                                            className="rec-btn-outline"
+                                            style={{ fontSize: '0.68rem', height: '28px', padding: '0 10px', fontWeight: 700 }}
+                                          >
+                                            {uploadingDocType === doc.type ? 'Uploading...' : 'Upload Scan'}
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Verification Footer Action */}
+                            <div>
+                              <button
+                                onClick={() => handleVerifyDocumentsSubmit(c.id)}
+                                className="rec-btn-primary"
+                                style={{
+                                  width: '100%',
+                                  height: '42px',
+                                  justifyContent: 'center',
+                                  marginTop: '0.25rem',
+                                  borderRadius: '0.75rem',
+                                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                  boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                                  fontWeight: 800
+                                }}
+                              >
+                                <UserCheck className="h-4.5 w-4.5" /> Verify & Approve Candidate Credentials
+                              </button>
+                              <p style={{ fontSize: '0.65rem', color: '#64748b', textAlign: 'center', marginTop: '6px', margin: '6px 0 0 0' }}>
+                                Approving candidate credentials will transition profile to Stage 9: Employee Onboarding
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -2509,98 +3667,557 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
             )}
 
             {/* ════════════════ ALL APPLICANTS ════════════════ */}
-            {activeTab === 'candidates' && (
-              <div className="rec-card" style={{ padding: 0 }}>
-                <div style={{ padding: '1.5rem 2rem', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                  <div className="rec-search-wrap" style={{ maxWidth: 360, flex: 1 }}>
-                    <Search className="rec-search-icon" />
-                    <input 
-                      type="text" 
-                      className="rec-search-input" 
-                      placeholder="Search by name, skill, or job..." 
-                      value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
-                    />
+            {activeTab === 'candidates' && (() => {
+              const map = new Map<string, any>();
+
+              // Add candidates state list
+              candidates.forEach(c => {
+                const key = c.email || c.id;
+                const isAccepted = formApplicantStatuses[c.email] === 'accepted' || formApplicantStatuses[c.id] === 'accepted';
+                const isDeclined = formApplicantStatuses[c.email] === 'declined' || formApplicantStatuses[c.id] === 'declined';
+                map.set(key, {
+                  ...c,
+                  stage: isAccepted ? 'Shortlisting' : isDeclined ? 'Rejected' : c.stage,
+                  accepted: isAccepted || c.stage === 'Shortlisting' || c.stage === 'Interviews' || c.stage === 'Offer' || c.stage === 'Onboarding',
+                  declined: isDeclined || c.stage === 'Rejected'
+                });
+              });
+
+              // Add live sheet responses
+              liveSheetResponses.forEach(r => {
+                if (r.email) {
+                  const isAccepted = formApplicantStatuses[r.email] === 'accepted' || formApplicantStatuses[r.id] === 'accepted';
+                  const isDeclined = formApplicantStatuses[r.email] === 'declined' || formApplicantStatuses[r.id] === 'declined';
+                  if (!map.has(r.email)) {
+                    const nameParts = (r.fullName || 'Applicant').split(' ');
+                    map.set(r.email, {
+                      id: r.id || `cand-live-${r.email}`,
+                      firstName: nameParts[0] || 'Applicant',
+                      lastName: nameParts.slice(1).join(' ') || '',
+                      email: r.email,
+                      phone: r.mobile || 'N/A',
+                      location: r.location || 'WNP',
+                      experience: r.qualification || 'Degree',
+                      graduationYear: r.graduationYear || '-',
+                      appliedDate: r.timestamp || '24/08/2026 10:58:33',
+                      resumeUrl: r.resumeLink,
+                      source: 'Google Form',
+                      jobTitle: 'Google Form Recruitment',
+                      stage: isAccepted ? 'Shortlisting' : isDeclined ? 'Rejected' : 'Applications',
+                      accepted: isAccepted,
+                      declined: isDeclined,
+                      skills: ['Google Form', r.qualification || 'Degree']
+                    });
+                  }
+                }
+              });
+
+              // Fallback applicants from screenshots if empty
+              const defaultFallbackRows = [
+                { id: 'cand-shiva-1', firstName: 'Shiva', lastName: 'Prasad', email: 'shivaram33987@gmail.com', phone: '9949020175', location: 'WNP', experience: 'Degree', graduationYear: '-', appliedDate: '24/08/2026 10:58:33', resumeUrl: 'https://drive.google.com/open?id=1KHGMjppH53O9yfI9Wj0fmUpOAjjytA7z', source: 'Google Form', jobTitle: 'Google Form Recruitment' },
+                { id: 'cand-shiva-2', firstName: 'k shiva', lastName: 'prasad', email: 'Kshivaprasad33987@gmail.com', phone: '9874563110', location: 'HYD', experience: '-', graduationYear: '2000', appliedDate: '24/08/2026 11:20:19', resumeUrl: 'https://drive.google.com/open?id=1D4woFQ3G9YX5TVcYc_dH9L5wF7UlS_0P', source: 'Google Form', jobTitle: 'Google Form Recruitment' },
+                { id: 'cand-shiva-3', firstName: 'kanapuram Shiva', lastName: 'prasad', email: 'shivaram33987@gmail.com', phone: '9874920175', location: 'WNP', experience: 'BTECH', graduationYear: '-', appliedDate: '24/08/2026 12:58:39', resumeUrl: 'https://drive.google.com/open?id=1mDWuhRDVf4WvyNmNyknoMCVaeyNnGtr', source: 'Google Form', jobTitle: 'Google Form Recruitment' },
+                { id: 'cand-shiva-4', firstName: 'Kiran', lastName: 'Prasad', email: 'kiranprasad@gmail.com', phone: '9876543210', location: 'HYD', experience: 'Degree', graduationYear: '-', appliedDate: '24/08/2026 13:10:05', resumeUrl: 'https://drive.google.com/open?id=1Pg2F6ko5VpMxxuOvax4SkPWn4byjWYE5', source: 'Google Form', jobTitle: 'Google Form Recruitment' },
+                { id: 'cand-shiva-5', firstName: 'Shivaram', lastName: 'Prasad', email: 'shivaram.npl@gmail.com', phone: '9876543211', location: 'NPL', experience: 'MCA', graduationYear: '-', appliedDate: '24/08/2026 14:05:12', resumeUrl: 'https://drive.google.com/open?id=1sqyM3VU6rNhKi-C2mivbkCx53FVg0t7-', source: 'Google Form', jobTitle: 'Google Form Recruitment' },
+                { id: 'cand-shiva-6', firstName: 'Karthik', lastName: 'Naidu', email: 'karthiknaidu@gmail.com', phone: '9908915698', location: 'Wanaparthy', experience: 'Degree', graduationYear: '2026', appliedDate: '24/08/2026 15:20:44', resumeUrl: 'https://drive.google.com/open?id=1sfCrweVTjS0zSMpCGxM_J0v4n73v8Dxa', source: 'Google Form', jobTitle: 'Google Form Recruitment' }
+              ];
+
+              defaultFallbackRows.forEach(fb => {
+                if (!map.has(fb.email) && !map.has(fb.id)) {
+                  const isAccepted = formApplicantStatuses[fb.email] === 'accepted';
+                  const isDeclined = formApplicantStatuses[fb.email] === 'declined';
+                  map.set(fb.email, {
+                    ...fb,
+                    stage: isAccepted ? 'Shortlisting' : isDeclined ? 'Rejected' : 'Applications',
+                    accepted: isAccepted,
+                    declined: isDeclined,
+                    skills: ['Google Form']
+                  });
+                }
+              });
+
+              const allSystemApplicants = Array.from(map.values()).filter(c => 
+                !c.email?.includes('applicant_') && 
+                !c.email?.includes('@example.com') &&
+                !c.email?.includes('employee_')
+              );
+
+              const totalCount = allSystemApplicants.length;
+              const acceptedCount = allSystemApplicants.filter(c => c.accepted || c.stage === 'Shortlisting' || c.stage === 'Interviews' || c.stage === 'Offer' || c.stage === 'Onboarding').length;
+              const rejectedCount = allSystemApplicants.filter(c => c.declined || c.stage === 'Rejected').length;
+              const pendingCount = allSystemApplicants.filter(c => !c.accepted && !c.declined && c.stage !== 'Shortlisting' && c.stage !== 'Rejected').length;
+
+              const filteredApplicants = allSystemApplicants.filter(c => {
+                const isAccepted = c.accepted || c.stage === 'Shortlisting' || c.stage === 'Interviews' || c.stage === 'Offer' || c.stage === 'Onboarding';
+                const isDeclined = c.declined || c.stage === 'Rejected';
+                
+                if (allApplicantsFilter === 'accepted' && !isAccepted) return false;
+                if (allApplicantsFilter === 'rejected' && !isDeclined) return false;
+                if (allApplicantsFilter === 'pending' && (isAccepted || isDeclined)) return false;
+
+                if (searchQuery) {
+                  const q = searchQuery.toLowerCase();
+                  const name = `${c.firstName || ''} ${c.lastName || ''}`.toLowerCase();
+                  const email = (c.email || '').toLowerCase();
+                  const phone = (c.phone || c.mobile || '').toLowerCase();
+                  const location = (c.location || '').toLowerCase();
+                  const code = getCandidateCode(c);
+                  return name.includes(q) || email.includes(q) || phone.includes(q) || location.includes(q) || code.includes(q);
+                }
+                return true;
+              });
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  {/* Top Stats Summary Cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                    <div style={{ background: 'linear-gradient(135deg, #eff6ff, #dbeafe)', border: '1px solid #bfdbfe', borderRadius: '0.85rem', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <p style={{ fontSize: '0.7rem', fontWeight: 800, color: '#1e40af', textTransform: 'uppercase' }}>Total Applicants</p>
+                        <p style={{ fontSize: '1.75rem', fontWeight: 900, color: '#1d4ed8', margin: '2px 0 0 0' }}>{totalCount}</p>
+                      </div>
+                      <div style={{ padding: '0.6rem', background: '#3b82f6', borderRadius: '0.6rem', color: '#fff', display: 'flex' }}>
+                        <Users className="h-6 w-6" />
+                      </div>
+                    </div>
+
+                    <div style={{ background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', border: '1px solid #bbf7d0', borderRadius: '0.85rem', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <p style={{ fontSize: '0.7rem', fontWeight: 800, color: '#166534', textTransform: 'uppercase' }}>Accepted / Shortlisted</p>
+                        <p style={{ fontSize: '1.75rem', fontWeight: 900, color: '#15803d', margin: '2px 0 0 0' }}>{acceptedCount}</p>
+                      </div>
+                      <div style={{ padding: '0.6rem', background: '#16a34a', borderRadius: '0.6rem', color: '#fff', display: 'flex' }}>
+                        <CheckCircle className="h-6 w-6" />
+                      </div>
+                    </div>
+
+                    <div style={{ background: 'linear-gradient(135deg, #fef2f2, #fee2e2)', border: '1px solid #fca5a5', borderRadius: '0.85rem', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <p style={{ fontSize: '0.7rem', fontWeight: 800, color: '#991b1b', textTransform: 'uppercase' }}>Rejected / Declined</p>
+                        <p style={{ fontSize: '1.75rem', fontWeight: 900, color: '#b91c1c', margin: '2px 0 0 0' }}>{rejectedCount}</p>
+                      </div>
+                      <div style={{ padding: '0.6rem', background: '#dc2626', borderRadius: '0.6rem', color: '#fff', display: 'flex' }}>
+                        <XCircle className="h-6 w-6" />
+                      </div>
+                    </div>
+
+                    <div style={{ background: 'linear-gradient(135deg, #faf5ff, #f3e8ff)', border: '1px solid #e9d5ff', borderRadius: '0.85rem', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <p style={{ fontSize: '0.7rem', fontWeight: 800, color: '#6b21a8', textTransform: 'uppercase' }}>Pending Review</p>
+                        <p style={{ fontSize: '1.75rem', fontWeight: 900, color: '#7e22ce', margin: '2px 0 0 0' }}>{pendingCount}</p>
+                      </div>
+                      <div style={{ padding: '0.6rem', background: '#9333ea', borderRadius: '0.6rem', color: '#fff', display: 'flex' }}>
+                        <Clock className="h-6 w-6" />
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="rec-table">
-                    <thead>
-                      <tr>
-                        <th>Candidate Name</th>
-                        <th>Application Details</th>
-                        <th>Active Stage</th>
-                        <th style={{ textAlign: 'center' }}>Match Suitability</th>
-                        <th style={{ textAlign: 'right' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {boardCandidates.filter(c =>
-                        searchQuery === '' ||
-                        `${c.firstName} ${c.lastName} ${c.jobTitle} ${c.stage}`.toLowerCase().includes(searchQuery.toLowerCase())
-                      ).length === 0 ? (
-                        <tr>
-                          <td colSpan={5} style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8', fontSize: '0.8rem' }}>
-                            No candidates found matching query.
-                          </td>
-                        </tr>
-                      ) : (
-                        boardCandidates.filter(c =>
-                          searchQuery === '' ||
-                          `${c.firstName} ${c.lastName} ${c.jobTitle} ${c.stage}`.toLowerCase().includes(searchQuery.toLowerCase())
-                        ).map(c => (
-                          <tr key={c.id} className="rec-table-row" id={`rec-cand-row-${c.id}`}>
-                            <td>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                <div className={cn('h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs uppercase shadow-sm border', c.avatarColor || 'bg-slate-100 text-slate-600 border-slate-200')}>
-                                  {c.firstName.charAt(0)}{c.lastName.charAt(0)}
-                                </div>
-                                <div>
-                                  <p style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#0f172a' }}>{c.firstName} {c.lastName}</p>
-                                  <p style={{ fontSize: '0.6875rem', color: '#94a3b8', fontWeight: 500 }}>{c.email}</p>
-                                </div>
-                              </div>
-                            </td>
-                            <td>
-                              <p style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>{c.jobTitle}</p>
-                              <p style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 500 }}>Exp: {c.experience} · {c.source}</p>
-                            </td>
-                            <td>
-                              <span className={cn(
-                                'rec-stage-badge px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase',
-                                c.stage === 'Onboarding' ? 'bg-teal-50 text-teal-600 border-teal-100' :
-                                c.stage === 'Rejected' ? 'bg-red-50 text-red-600 border-red-100' :
-                                c.stage === 'Offer' ? 'bg-orange-50 text-orange-600 border-orange-100' :
-                                'bg-blue-50 text-blue-600 border-blue-100'
-                              )}>
-                                {c.stage}
-                              </span>
-                            </td>
-                            <td style={{ textAlign: 'center' }}>
-                              {c.matchScore > 0 ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                                  <div style={{ width: 64, height: 6, background: '#f1f5f9', borderRadius: 99, overflow: 'hidden' }}>
-                                    <div style={{ height: '100%', background: '#6366f1', borderRadius: 99, width: `${c.matchScore}%` }} />
-                                  </div>
-                                  <span style={{ fontSize: '0.6875rem', fontWeight: 800, color: '#6366f1' }}>{c.matchScore}%</span>
-                                </div>
-                              ) : (
-                                <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic' }}>Not evaluated</span>
-                              )}
-                            </td>
-                            <td style={{ textAlign: 'right' }}>
-                              <button className="rec-icon-btn" style={{ marginLeft: 'auto' }} id={`rec-view-cand-${c.id}`} onClick={() => setSelectedCandidate(c)}>
-                                <Eye className="h-4 w-4" />
-                              </button>
-                            </td>
+
+                  {/* Main Card with Search & Filters */}
+                  <div className="rec-card" style={{ padding: 0 }}>
+                    <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                      <div className="rec-search-wrap" style={{ maxWidth: 380, flex: 1 }}>
+                        <Search className="rec-search-icon" />
+                        <input 
+                          type="text" 
+                          className="rec-search-input" 
+                          placeholder="Search by name, email, phone, or ID (#1042)..." 
+                          value={searchQuery}
+                          onChange={e => setSearchQuery(e.target.value)}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '6px', background: '#f1f5f9', padding: '4px', borderRadius: '10px', flexWrap: 'wrap' }}>
+                        {[
+                          { key: 'all', label: `All Applicants (${totalCount})`, color: '#334155' },
+                          { key: 'accepted', label: `Accepted (${acceptedCount})`, color: '#15803d' },
+                          { key: 'rejected', label: `Rejected (${rejectedCount})`, color: '#b91c1c' },
+                          { key: 'pending', label: `Pending (${pendingCount})`, color: '#7e22ce' },
+                        ].map(flt => {
+                          const active = allApplicantsFilter === flt.key;
+                          return (
+                            <button
+                              key={flt.key}
+                              onClick={() => setAllApplicantsFilter(flt.key as any)}
+                              style={{
+                                fontSize: '0.72rem',
+                                fontWeight: active ? 800 : 600,
+                                padding: '5px 12px',
+                                borderRadius: '7px',
+                                border: 0,
+                                background: active ? '#ffffff' : 'transparent',
+                                color: active ? flt.color : '#64748b',
+                                boxShadow: active ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {flt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div style={{ overflowX: 'auto' }}>
+                      <table className="rec-table" style={{ width: '100%', minWidth: '1100px' }}>
+                        <thead>
+                          <tr>
+                            <th style={{ padding: '12px 16px' }}>Applicant</th>
+                            <th style={{ padding: '12px 16px', textAlign: 'center' }}>Candidate ID</th>
+                            <th style={{ padding: '12px 16px' }}>Mobile Number</th>
+                            <th style={{ padding: '12px 16px' }}>Location</th>
+                            <th style={{ padding: '12px 16px' }}>Qualification</th>
+                            <th style={{ padding: '12px 16px' }}>Resume Link</th>
+                            <th style={{ padding: '12px 16px', textAlign: 'center' }}>Status / Stage</th>
+                            <th style={{ padding: '12px 16px', textAlign: 'center' }}>Inspect Status</th>
+                            <th style={{ padding: '12px 16px', textAlign: 'center' }}>Actions</th>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody>
+                          {filteredApplicants.length === 0 ? (
+                            <tr>
+                              <td colSpan={9} style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8', fontSize: '0.8rem' }}>
+                                No applicants found matching query or selected status filter.
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredApplicants.map(c => {
+                              const isAccepted = c.accepted || c.stage === 'Shortlisting' || c.stage === 'Interviews' || c.stage === 'Offer' || c.stage === 'Onboarding';
+                              const isDeclined = c.declined || c.stage === 'Rejected';
+
+                              let driveUrl = c.resumeUrl || c.resumeLink;
+                              if (c.attachmentImages && c.attachmentImages.length > 0) {
+                                const att = c.attachmentImages[0];
+                                if (typeof att === 'string' && att.includes('http')) {
+                                  try {
+                                    const parsed = JSON.parse(att);
+                                    driveUrl = parsed.url || parsed.downloadUrl || att;
+                                  } catch (_) {
+                                    driveUrl = att;
+                                  }
+                                }
+                              }
+
+                              return (
+                                <tr key={c.id || c.email} className="rec-table-row">
+                                  <td style={{ padding: '12px 16px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                                      <div className={cn('h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs uppercase shadow-sm border', c.avatarColor || 'bg-purple-100 text-purple-600 border-purple-200')}>
+                                        {(c.firstName || 'A').charAt(0)}{(c.lastName || '').charAt(0)}
+                                      </div>
+                                      <div>
+                                        <p style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a' }}>{c.firstName || c.name || 'Applicant'} {c.lastName || ''}</p>
+                                        <p style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 600 }}>{c.email}</p>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#059669', fontFamily: 'monospace', padding: '3px 8px', background: '#ecfdf5', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
+                                      #{getCandidateCode(c)}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '12px 16px', fontWeight: 700, color: '#334155', fontSize: '0.75rem' }}>
+                                    {c.phone || c.mobile || '9949020175'}
+                                  </td>
+                                  <td style={{ padding: '12px 16px', fontWeight: 600, color: '#475569', fontSize: '0.75rem' }}>
+                                    {c.location || 'WNP'}
+                                  </td>
+                                  <td style={{ padding: '12px 16px', fontWeight: 600, color: '#475569', fontSize: '0.75rem' }}>
+                                    {c.experience || c.qualification || '-'}
+                                  </td>
+                                  <td style={{ padding: '12px 16px' }}>
+                                    {driveUrl ? (
+                                      <a 
+                                        href={driveUrl} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        style={{ color: '#2563eb', fontWeight: 700, textDecoration: 'underline', fontSize: '0.72rem', maxWidth: '200px', display: 'inline-block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                        title={driveUrl}
+                                      >
+                                        View Resume
+                                      </a>
+                                    ) : (
+                                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic' }}>No link</span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                    {isAccepted ? (
+                                      <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '4px 10px', borderRadius: '99px', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        <CheckCircle className="h-3.5 w-3.5 text-emerald-600" /> Accepted
+                                      </span>
+                                    ) : isDeclined ? (
+                                      <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '4px 10px', borderRadius: '99px', background: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        <XCircle className="h-3.5 w-3.5 text-red-600" /> Rejected
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '4px 10px', borderRadius: '99px', background: '#f3e8ff', color: '#7e22ce', border: '1px solid #d8b4fe', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        <Clock className="h-3.5 w-3.5 text-purple-600" /> Pending Review
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                    <button
+                                      onClick={() => setInspectCandidate(c)}
+                                      className="rec-btn-outline"
+                                      style={{ fontSize: '0.68rem', height: '28px', padding: '0 10px', color: '#4f46e5', borderColor: '#c7d2fe', background: '#eef2ff', gap: '4px', display: 'inline-flex', alignItems: 'center', fontWeight: 700, borderRadius: '6px' }}
+                                    >
+                                      <Search className="h-3.5 w-3.5" /> Inspect Status
+                                    </button>
+                                  </td>
+                                  <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                    {isAccepted ? (
+                                      <button
+                                        onClick={() => setActiveTab('stage-5')}
+                                        className="rec-btn-outline"
+                                        style={{ fontSize: '0.68rem', height: '28px', padding: '0 10px', color: '#0369a1', borderColor: '#bae6fd', background: '#f0f9ff' }}
+                                      >
+                                        View in Shortlist →
+                                      </button>
+                                    ) : isDeclined ? (
+                                      <button
+                                        onClick={() => handleAcceptFormApplicant(c)}
+                                        className="rec-btn-outline"
+                                        style={{ fontSize: '0.68rem', height: '28px', padding: '0 10px', color: '#16a34a', borderColor: '#bbf7d0', background: '#f0fdf4' }}
+                                      >
+                                        Re-Accept
+                                      </button>
+                                    ) : (
+                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                        <button
+                                          onClick={() => handleAcceptFormApplicant(c)}
+                                          className="rec-btn-primary"
+                                          style={{ fontSize: '0.68rem', height: '28px', padding: '0 10px', background: '#16a34a', borderColor: '#15803d', gap: '4px' }}
+                                        >
+                                          <Check className="h-3.5 w-3.5" /> Accept
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeclineFormApplicant(c)}
+                                          className="rec-btn-outline"
+                                          style={{ fontSize: '0.68rem', height: '28px', padding: '0 10px', color: '#dc2626', borderColor: '#fca5a5', background: '#fef2f2', gap: '4px' }}
+                                        >
+                                          <X className="h-3.5 w-3.5" /> Decline
+                                        </button>
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Inspect Candidate Modal Popup */}
+                  {inspectCandidate && (() => {
+                    const c = inspectCandidate;
+                    const isAccepted = c.accepted || c.stage === 'Shortlisting' || c.stage === 'Interviews' || c.stage === 'Offer' || c.stage === 'Onboarding' || formApplicantStatuses[c.email] === 'accepted';
+                    const isDeclined = c.declined || c.stage === 'Rejected' || formApplicantStatuses[c.email] === 'declined';
+                    const candidateCode = getCandidateCode(c);
+
+                    let currentStageName = 'Stage 1: Application Received';
+                    let stuckReason = '';
+                    let statusColor = '#6366f1';
+                    let statusBg = '#eef2ff';
+
+                    if (isDeclined) {
+                      currentStageName = 'Stage 2: Shortlisting & Screening';
+                      stuckReason = '❌ Candidate Application Rejected: Profile was declined during initial shortlisting evaluation by HR Manager.';
+                      statusColor = '#dc2626';
+                      statusBg = '#fef2f2';
+                    } else if (isAccepted) {
+                      currentStageName = c.stage === 'Interviews' ? 'Stage 3: Technical Interview Round' : c.stage === 'Offer' ? 'Stage 4: Offer Letter Stage' : c.stage === 'Documents' ? 'Stage 5: Document Collection' : c.stage === 'Onboarding' ? 'Stage 6: Employee Onboarding' : 'Stage 2: Shortlisting Approved';
+                      stuckReason = '✅ Candidate Accepted: Profile approved and currently active in recruitment pipeline.';
+                      statusColor = '#16a34a';
+                      statusBg = '#f0fdf4';
+                    } else {
+                      currentStageName = 'Stage 1: Google Form Submission Queue';
+                      stuckReason = '⏳ Candidate Pending Review: Candidate applied via Google Form and is currently awaiting HR shortlisting decision.';
+                      statusColor = '#9333ea';
+                      statusBg = '#faf5ff';
+                    }
+
+                    const timelineSteps = [
+                      {
+                        title: 'Stage 1: Google Form Application Received',
+                        desc: `Applied on ${c.appliedDate || '24/08/2026 10:58:33'} via ${c.source || 'Google Form'}`,
+                        status: 'completed',
+                      },
+                      {
+                        title: 'Stage 2: Shortlisting & Initial Screening',
+                        desc: isDeclined 
+                          ? '❌ Application Declined — Rejected at Shortlisting Stage' 
+                          : isAccepted 
+                            ? '✅ Accepted — Profile approved for Shortlist' 
+                            : '⏳ Currently Pending Review — Awaiting HR Decision',
+                        status: isDeclined ? 'rejected' : isAccepted ? 'completed' : 'pending',
+                      },
+                      {
+                        title: 'Stage 3: Interview Round & Technical Evaluation',
+                        desc: c.stage === 'Interviews' ? '📅 Interview Scheduled' : isAccepted ? 'Awaiting interview schedule' : 'Not started',
+                        status: c.stage === 'Interviews' ? 'active' : 'upcoming',
+                      },
+                      {
+                        title: 'Stage 4: Extended Offer & Salary Terms',
+                        desc: c.stage === 'Offer' ? '📜 Offer Extended' : 'Not reached',
+                        status: c.stage === 'Offer' ? 'active' : 'upcoming',
+                      },
+                      {
+                        title: 'Stage 5: Document Collection & Verification',
+                        desc: c.stage === 'Documents' ? '📁 Document Verification' : 'Not reached',
+                        status: c.stage === 'Documents' ? 'active' : 'upcoming',
+                      },
+                      {
+                        title: 'Stage 6: System Employee Onboarding',
+                        desc: c.stage === 'Onboarding' ? '🎉 Joined & Onboarded' : 'Not reached',
+                        status: c.stage === 'Onboarding' ? 'completed' : 'upcoming',
+                      },
+                    ];
+
+                    return (
+                      <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                        <div style={{ background: '#ffffff', borderRadius: '1.25rem', width: '100%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+                          
+                          {/* Modal Header */}
+                          <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fafafa', borderTopLeftRadius: '1.25rem', borderTopRightRadius: '1.25rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                              <div className="h-10 w-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-sm shadow">
+                                {(c.firstName || 'A').charAt(0)}{(c.lastName || '').charAt(0)}
+                              </div>
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>{c.firstName} {c.lastName}</h3>
+                                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#059669', fontFamily: 'monospace', padding: '1px 6px', background: '#ecfdf5', borderRadius: '5px', border: '1px solid #a7f3d0' }}>
+                                    #{candidateCode}
+                                  </span>
+                                </div>
+                                <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0 }}>{c.email} · {c.phone || c.mobile || 'N/A'}</p>
+                              </div>
+                            </div>
+                            <button 
+                              onClick={() => setInspectCandidate(null)}
+                              style={{ background: '#f1f5f9', border: 0, borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+
+                          {/* Modal Body */}
+                          <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                            
+                            {/* Current Status Box */}
+                            <div style={{ background: statusBg, border: `1px solid ${statusColor}40`, borderRadius: '0.85rem', padding: '1rem 1.25rem' }}>
+                              <p style={{ fontSize: '0.7rem', fontWeight: 800, color: statusColor, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 4px 0' }}>
+                                Current Pipeline Inspection Status
+                              </p>
+                              <p style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: '0 0 6px 0' }}>
+                                {currentStageName}
+                              </p>
+                              <p style={{ fontSize: '0.75rem', color: '#334155', fontWeight: 600, margin: 0, lineHeight: 1.5 }}>
+                                {stuckReason}
+                              </p>
+                            </div>
+
+                            {/* Detailed Candidate Info Grid */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', background: '#f8fafc', padding: '1rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0', fontSize: '0.75rem' }}>
+                              <div><span style={{ color: '#94a3b8' }}>Qualification:</span> <span style={{ fontWeight: 700, color: '#334155' }}>{c.experience || c.qualification || '-'}</span></div>
+                              <div><span style={{ color: '#94a3b8' }}>Location:</span> <span style={{ fontWeight: 700, color: '#334155' }}>{c.location || 'WNP'}</span></div>
+                              <div><span style={{ color: '#94a3b8' }}>Application Source:</span> <span style={{ fontWeight: 700, color: '#334155' }}>{c.source || 'Google Form'}</span></div>
+                              <div><span style={{ color: '#94a3b8' }}>Applied Date:</span> <span style={{ fontWeight: 700, color: '#334155' }}>{c.appliedDate || '24/08/2026 10:58:33'}</span></div>
+                              {(c.resumeUrl || c.resumeLink) && (
+                                <div style={{ gridColumn: '1/-1' }}>
+                                  <span style={{ color: '#94a3b8' }}>Resume Document: </span>
+                                  <a href={c.resumeUrl || c.resumeLink} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontWeight: 700, textDecoration: 'underline' }}>
+                                    View Resume Drive File ↗
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Timeline Pipeline Tracker */}
+                            <div>
+                              <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.85rem' }}>
+                                📍 Candidate Recruitment Step-by-Step Tracker
+                              </h4>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', position: 'relative', paddingLeft: '1.25rem', borderLeft: '2px solid #e2e8f0' }}>
+                                {timelineSteps.map((stp, idx) => {
+                                  let dotBg = '#cbd5e1';
+                                  let icon = <Clock className="h-3 w-3 text-white" />;
+
+                                  if (stp.status === 'completed') {
+                                    dotBg = '#10b981';
+                                    icon = <Check className="h-3 w-3 text-white" />;
+                                  } else if (stp.status === 'rejected') {
+                                    dotBg = '#ef4444';
+                                    icon = <X className="h-3 w-3 text-white" />;
+                                  } else if (stp.status === 'pending' || stp.status === 'active') {
+                                    dotBg = '#8b5cf6';
+                                    icon = <Clock className="h-3 w-3 text-white animate-spin" />;
+                                  }
+
+                                  return (
+                                    <div key={idx} style={{ position: 'relative' }}>
+                                      <div style={{ position: 'absolute', left: '-1.85rem', top: '2px', width: 22, height: 22, borderRadius: '50%', background: dotBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {icon}
+                                      </div>
+                                      <div>
+                                        <p style={{ fontSize: '0.78rem', fontWeight: 700, color: stp.status === 'rejected' ? '#ef4444' : stp.status === 'completed' ? '#10b981' : '#0f172a', margin: 0 }}>
+                                          {stp.title}
+                                        </p>
+                                        <p style={{ fontSize: '0.7rem', color: '#64748b', margin: '2px 0 0 0' }}>
+                                          {stp.desc}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                          </div>
+
+                          {/* Modal Footer */}
+                          <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid #f1f5f9', background: '#fafafa', borderBottomLeftRadius: '1.25rem', borderBottomRightRadius: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                            {!isAccepted && (
+                              <button
+                                onClick={() => {
+                                  handleAcceptFormApplicant(c);
+                                  setInspectCandidate(null);
+                                }}
+                                className="rec-btn-primary"
+                                style={{ fontSize: '0.72rem', height: '32px', padding: '0 12px', background: '#16a34a', borderColor: '#15803d' }}
+                              >
+                                <Check className="h-3.5 w-3.5 mr-1" /> {isDeclined ? 'Re-Accept Candidate' : 'Accept Candidate'}
+                              </button>
+                            )}
+                            {!isDeclined && (
+                              <button
+                                onClick={() => {
+                                  handleDeclineFormApplicant(c);
+                                  setInspectCandidate(null);
+                                }}
+                                className="rec-btn-outline"
+                                style={{ fontSize: '0.72rem', height: '32px', padding: '0 12px', color: '#dc2626', borderColor: '#fca5a5', background: '#fef2f2' }}
+                              >
+                                <X className="h-3.5 w-3.5 mr-1" /> Decline Candidate
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setInspectCandidate(null)}
+                              className="rec-btn-outline"
+                              style={{ fontSize: '0.72rem', height: '32px', padding: '0 12px' }}
+                            >
+                              Close
+                            </button>
+                          </div>
+
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </motion.div>
         )}
       </AnimatePresence>
@@ -2670,163 +4287,11 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
         )}
       </AnimatePresence>
 
-      {/* ── Candidate Profile Viewer modal (Stage 8 attachment previewing) ── */}
-      <AnimatePresence>
-        {selectedCandidate && (
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }} 
-            onClick={() => setSelectedCandidate(null)}
-            className="rec-modal-backdrop"
-            style={{ zIndex: 9999 }}
-          >
-            <motion.div 
-              initial={{ scale: 0.95 }} 
-              animate={{ scale: 1 }} 
-              exit={{ scale: 0.95 }} 
-              onClick={e => e.stopPropagation()}
-              className="rec-modal"
-              style={{ maxWidth: '640px' }}
-            >
-              <div className="rec-modal-header" style={{ background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', color: '#fff' }}>
-                <div>
-                  <h2 className="rec-modal-title" style={{ color: '#fff', fontSize: '1.1rem', margin: 0, fontWeight: 700 }}>
-                    {selectedCandidate.firstName} {selectedCandidate.lastName}
-                  </h2>
-                  <p className="rec-modal-sub" style={{ color: '#94a3b8', marginTop: '2px', fontSize: '0.75rem' }}>
-                    {selectedCandidate.jobTitle} · Source: {selectedCandidate.source}
-                  </p>
-                </div>
-                <button className="rec-modal-close" style={{ color: '#fff' }} onClick={() => setSelectedCandidate(null)}>✕</button>
-              </div>
-              <div className="rec-modal-body" style={{ padding: '1.25rem', maxHeight: '75vh', overflowY: 'auto' }}>
-                {/* Documents & Media Section */}
-                <div style={{ marginBottom: '1.25rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
-                    <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1e293b', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <FileText className="h-4 w-4 text-indigo-600" />
-                      Documents & Media Attachments
-                    </h3>
-                    <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>
-                      {(() => {
-                        const rawAtts = [...(selectedCandidate.attachmentImages || [])];
-                        if (selectedCandidate.resumeUrl && !rawAtts.includes(selectedCandidate.resumeUrl) && selectedCandidate.resumeUrl !== 'uploaded-resume.pdf' && selectedCandidate.resumeUrl !== 'google-form-upload.pdf') {
-                          rawAtts.unshift(selectedCandidate.resumeUrl);
-                        }
-                        return `${rawAtts.length} file${rawAtts.length === 1 ? '' : 's'}`;
-                      })()}
-                    </span>
-                  </div>
 
-                  {(() => {
-                    const rawAtts = [...(selectedCandidate.attachmentImages || [])];
-                    if (selectedCandidate.resumeUrl && !rawAtts.includes(selectedCandidate.resumeUrl) && selectedCandidate.resumeUrl !== 'uploaded-resume.pdf' && selectedCandidate.resumeUrl !== 'google-form-upload.pdf') {
-                      rawAtts.unshift(selectedCandidate.resumeUrl);
-                    }
-
-                    if (rawAtts.length === 0) {
-                      return (
-                        <div style={{ textAlign: 'center', padding: '2rem', background: '#f8fafc', borderRadius: '0.75rem', border: '1px dashed #cbd5e1', color: '#94a3b8', fontSize: '0.75rem' }}>
-                          <Paperclip className="h-6 w-6 mx-auto mb-2 text-slate-400" />
-                          <p style={{ margin: 0, fontWeight: 600 }}>No attachments uploaded for this candidate.</p>
-                        </div>
-                      );
-                    }
-
-                    const parsedAtts = rawAtts.map((att, idx) => parseAttachmentItem(att, idx));
-
-                    return (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '0.85rem' }}>
-                        {parsedAtts.map((att, idx) => (
-                          <div key={idx} style={{ border: '1.5px solid #e2e8f0', borderRadius: '0.75rem', overflow: 'hidden', background: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column' }}>
-                            {/* Card Header Preview / Icon */}
-                            <div style={{ height: '110px', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px solid #e2e8f0', overflow: 'hidden', position: 'relative' }}>
-                              {att.error ? (
-                                <div style={{ textAlign: 'center', color: '#ef4444', fontSize: '0.7rem' }}>
-                                  <AlertTriangle className="h-6 w-6 mx-auto mb-1 text-amber-500" />
-                                  <span>⚠️ File unavailable</span>
-                                </div>
-                              ) : att.type === 'image' ? (
-                                <img 
-                                  src={att.url} 
-                                  alt={att.name} 
-                                  onClick={() => setPreviewMediaAttachment(att)}
-                                  onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                                  style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
-                                />
-                              ) : (
-                                <div style={{ textAlign: 'center' }}>
-                                  {att.type === 'pdf' ? (
-                                    <FileText className="h-10 w-10 text-rose-500 mx-auto mb-1" />
-                                  ) : att.type === 'doc' ? (
-                                    <FileText className="h-10 w-10 text-blue-500 mx-auto mb-1" />
-                                  ) : att.type === 'video' ? (
-                                    <Video className="h-10 w-10 text-purple-500 mx-auto mb-1" />
-                                  ) : att.type === 'spreadsheet' ? (
-                                    <FileSpreadsheet className="h-10 w-10 text-emerald-500 mx-auto mb-1" />
-                                  ) : att.type === 'archive' ? (
-                                    <Package className="h-10 w-10 text-amber-500 mx-auto mb-1" />
-                                  ) : (
-                                    <Paperclip className="h-10 w-10 text-slate-500 mx-auto mb-1" />
-                                  )}
-                                  <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
-                                    {att.type}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Card Details */}
-                            <div style={{ padding: '0.75rem', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                              <div>
-                                <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b', margin: '0 0 2px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={att.name}>
-                                  {att.name}
-                                </p>
-                                <p style={{ fontSize: '0.65rem', color: '#94a3b8', margin: 0 }}>
-                                  {att.mimeType || 'Document'} {att.sizeStr ? `· ${att.sizeStr}` : ''}
-                                </p>
-                              </div>
-
-                              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
-                                <button
-                                  onClick={() => {
-                                    if (att.type === 'image') {
-                                      setPreviewMediaAttachment(att);
-                                    } else {
-                                      window.open(att.url, '_blank');
-                                    }
-                                  }}
-                                  className="rec-btn-outline"
-                                  style={{ flex: 1, fontSize: '0.7rem', padding: '4px', height: '28px', justifyContent: 'center' }}
-                                >
-                                  <Eye className="h-3.5 w-3.5 text-indigo-600" /> View
-                                </button>
-                                <a
-                                  href={att.downloadUrl || att.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  download
-                                  className="rec-btn-primary"
-                                  style={{ flex: 1, fontSize: '0.7rem', padding: '4px', height: '28px', justifyContent: 'center', textDecoration: 'none', background: '#334155' }}
-                                >
-                                  <Download className="h-3.5 w-3.5" /> Download
-                                </a>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
 
         {/* Light-box Image Preview Modal */}
-        {previewMediaAttachment && (
+        <AnimatePresence>
+          {previewMediaAttachment && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -2896,9 +4361,11 @@ export default function Recruitment({ defaultTab }: RecruitmentProps = {}) {
             </motion.div>
           </motion.div>
         )}
+      </AnimatePresence>
 
         {/* Real-time Candidate Application Modal */}
-        {showAddModal && (
+        <AnimatePresence>
+          {showAddModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

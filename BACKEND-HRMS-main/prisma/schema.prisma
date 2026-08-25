@@ -506,6 +506,7 @@ model JobApplication {
   interviewTime    String?
   interviewType    String?
   interviewer      String?
+  interviewLink    String?
   
   // Offer Phase
   offerSalary      Float?

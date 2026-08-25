@@ -297,22 +297,22 @@ export const attendanceController = {
     const tenantId = req.tenantId ?? req.user?.tenantId
     const { id } = req.params
 
-    if (!tenantId) {
+    if (!tenantId && req.user?.role !== 'SUPER_ADMIN') {
       return sendError(res, 'Unauthorized', 401)
     }
     
-    // Ensure only HR/ADMIN can reset
+    // Ensure only HR/ADMIN/SUPER_ADMIN can reset
     if (req.user?.role !== 'HR' && req.user?.role !== 'ADMIN' && req.user?.role !== 'SUPER_ADMIN') {
       return sendError(res, 'Only HR or Admin can reset a shift', 403)
     }
 
     try {
-      // Make sure the record exists and belongs to the tenant
+      // Make sure the record exists
       const record = await prisma.attendance.findUnique({
         where: { id },
       })
 
-      if (!record || record.tenantId !== tenantId) {
+      if (!record || (req.user?.role !== 'SUPER_ADMIN' && tenantId && record.tenantId !== tenantId)) {
         return sendError(res, 'Attendance record not found', 404)
       }
 
@@ -330,7 +330,7 @@ export const attendanceController = {
     const tenantId = req.tenantId ?? req.user?.tenantId
     const { id } = req.params
 
-    if (!tenantId) {
+    if (!tenantId && req.user?.role !== 'SUPER_ADMIN') {
       return sendError(res, 'Unauthorized', 401)
     }
 
@@ -340,12 +340,12 @@ export const attendanceController = {
     }
 
     try {
-      // Make sure the record exists and belongs to the tenant
+      // Make sure the record exists
       const record = await prisma.attendance.findUnique({
         where: { id },
       })
 
-      if (!record || record.tenantId !== tenantId) {
+      if (!record || (req.user?.role !== 'SUPER_ADMIN' && tenantId && record.tenantId !== tenantId)) {
         return sendError(res, 'Attendance record not found', 404)
       }
 
